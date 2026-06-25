@@ -141,14 +141,23 @@ export function withUivisor(
   // 3. Turbopack source-location loader (experimental, opt-in).
   if (useTurbopack) {
     const ld = [{ loader: 'uivisor/next/loader', options: { attr } }]
-    // `as` keeps our annotated output in Turbopack's TS/JSX pipeline (SWC) —
-    // without it Turbopack parses the .tsx output as plain JS and fails.
-    const rules = {
-      '*.tsx': { loaders: ld, as: '*.tsx' },
-      '*.jsx': { loaders: ld, as: '*.jsx' },
-    }
     const major = nextMajor()
-    if (major === 0 || major >= 15) {
+    const modern = major === 0 || major >= 15
+
+    // The `as` field is VERSION-SPECIFIC because the two Turbopack engines treat
+    // loader output differently:
+    //  • Next 13–14 (experimental.turbo): output of a `.tsx` rule is typed as plain
+    //    JS unless `as: '*.tsx'` restores the source type — without it you get
+    //    "Parsing ecmascript source code failed" on the JSX/TS syntax.
+    //  • Next 15+/16 (top-level turbopack): output keeps the source type, and `as`
+    //    is a rename pattern — `as: '*.tsx'` appends a SECOND extension
+    //    (Foo.tsx → Foo.tsx.tsx → "module not found"), breaking every relative
+    //    import. So modern Turbopack must omit `as` entirely.
+    const rules = {
+      '*.tsx': modern ? { loaders: ld } : { loaders: ld, as: '*.tsx' },
+      '*.jsx': modern ? { loaders: ld } : { loaders: ld, as: '*.jsx' },
+    }
+    if (modern) {
       // Next 15.3+ / 16: top-level `turbopack`.
       out.turbopack = {
         ...(nextConfig.turbopack as object),
