@@ -130,6 +130,13 @@ export const CSS = /* css */ `
 .uiv-rk { color: #71717a; }
 .uiv-rv { color: #fff; word-break: break-all; display: flex; align-items: center; gap: 6px; }
 .uiv-rv.changed { color: #4ade80; } /* edited in uivisor → green */
+.uiv-rv.auto { color: #6b7280; } /* browser-computed / default → grey */
+.uiv-leg { display: flex; gap: 10px; padding: 1px 0 6px; font-size: 9px;
+  text-transform: uppercase; letter-spacing: .4px; }
+.uiv-lg { color: #e4e4e7; display: flex; align-items: center; gap: 4px; } /* file = white */
+.uiv-lg::before { content: ''; width: 7px; height: 7px; border-radius: 2px; background: currentColor; }
+.uiv-lg.edit { color: #4ade80; }
+.uiv-lg.auto { color: #6b7280; }
 .uiv-sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px;
   border: 1px solid rgba(255,255,255,0.2); flex: 0 0 auto; }
 

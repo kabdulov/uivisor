@@ -68,9 +68,11 @@ class Uivisor {
   /** Undo / redo stacks of full edit-state snapshots. */
   private undoStack: HistorySnap[] = []
   private redoStack: HistorySnap[] = []
-  /** Cached live computed-style for the selected element (invalidated on reselect). */
+  /** Cached live computed-style for the selected element (invalidated each render). */
   private _cs: CSSStyleDeclaration | null = null
   private _csEl: HTMLElement | null = null
+  /** Per-render memo of authored longhands per element (for the styles readout). */
+  private _matched: Map<Element, Set<string>> | null = null
   /** Cached project breakpoint system (detected from CSS), refreshed until found. */
   private _bp: BreakpointSystem | null = null
   /** Cached project design system (detected from CSS variables), refreshed until found. */
@@ -733,6 +735,11 @@ class Uivisor {
 
   // ---- rendering ----
   private renderBody(): void {
+    // Fresh reads each render: drop the computed-style cache and matched-rule memo
+    // so every control reflects the CURRENT breakpoint (no stale margin/size/etc.).
+    this._cs = null
+    this._csEl = null
+    this._matched = null
     const body = this.q('.uiv-body')
     if (!this.selected) {
       body.innerHTML = `
@@ -781,7 +788,81 @@ class Uivisor {
     return `<div class="uiv-dsbar" title="${escapeAttr(cats)}">◆ Design system · ${ds.tokens.length} tokens detected</div>`
   }
 
-  /** Read-only readout of the element's actual current styles — so you don't guess. */
+  /** Longhand properties an authoring rule (or non-uivisor inline) sets on `el`.
+   *  Reimplements getMatchedCSSRules over same-origin sheets (incl. matching
+   *  @media), so we can tell "set in the project's CSS" from "browser default". */
+  private matchedProps(el: Element): Set<string> {
+    const cache = (this._matched ||= new Map())
+    const cached = cache.get(el)
+    if (cached) return cached
+    const out = new Set<string>()
+    const he = el as HTMLElement
+    // author inline — but NOT uivisor's own ephemeral overrides on the selection
+    const applied = el === this.selected ? (this.st()?.applied ?? new Set<string>()) : new Set<string>()
+    if (he.style) for (let i = 0; i < he.style.length; i++) {
+      const p = he.style[i]
+      if (!applied.has(p)) out.add(p)
+    }
+    const win = el.ownerDocument.defaultView || window
+    const walk = (rules: CSSRuleList): void => {
+      for (let i = 0; i < rules.length; i++) {
+        const r = rules[i] as unknown as {
+          selectorText?: string
+          style?: CSSStyleDeclaration
+          media?: MediaList
+          cssRules?: CSSRuleList
+        }
+        if (r.selectorText && r.style) {
+          let m = false
+          try {
+            m = el.matches(r.selectorText)
+          } catch {
+            m = false
+          }
+          if (m) for (let j = 0; j < r.style.length; j++) out.add(r.style[j])
+        } else if (r.media && r.cssRules) {
+          let ok = true
+          try {
+            ok = win.matchMedia(r.media.mediaText).matches
+          } catch {
+            ok = true
+          }
+          if (ok) walk(r.cssRules)
+        } else if (r.cssRules) {
+          walk(r.cssRules)
+        }
+      }
+    }
+    const sheets = el.ownerDocument.styleSheets
+    for (let i = 0; i < sheets.length; i++) {
+      try {
+        walk(sheets[i].cssRules)
+      } catch {
+        /* cross-origin sheet — skip */
+      }
+    }
+    cache.set(el, out)
+    return out
+  }
+
+  /** Is any of `props` authored in the project CSS? For inherited properties we
+   *  also walk ancestors (a body/parent font rule still counts as "from the file"). */
+  private isAuthored(props: string[], inherit: boolean): boolean {
+    let node: Element | null = this.selected
+    while (node) {
+      const set = this.matchedProps(node)
+      if (props.some((p) => set.has(p))) return true
+      node = inherit ? node.parentElement : null
+    }
+    return false
+  }
+
+  /**
+   * Read-only readout of the element's ACTUAL current styles, three-state coloured:
+   *   white = authored in the project CSS · green = edited in uivisor ·
+   *   grey  = browser-computed/auto (e.g. a width a flex item derived, a default).
+   * Comprehensive + context-aware (flex/grid/position rows only when relevant).
+   */
   private currentStylesHtml(): string {
     const el = this.selected
     if (!el) return ''
@@ -797,49 +878,87 @@ class Uivisor {
       const h = hex(v)
       return /^#|rgb/.test(h) ? `<span class="uiv-sw" style="background:${h}"></span>${h}` : h
     }
-    const box = (prefix: string) => {
-      const t = g(`${prefix}-top`)
-      const r = g(`${prefix}-right`)
-      const b = g(`${prefix}-bottom`)
-      const l = g(`${prefix}-left`)
+    const sides = (parts: string[]) => {
+      const [t, r, b, l] = parts.map(g)
       if (t === r && r === b && b === l) return t
       if (t === b && r === l) return `${t} ${r}`
       return `${t} ${r} ${b} ${l}`
     }
-    // A readout row is "edited" (→ green) if any backing property was changed in uivisor.
-    const changedSet = new Set(this.st()?.record.changes.map((c) => c.property) ?? [])
-    const changed = (props: string[]) => props.some((p) => changedSet.has(p))
-    const px4 = (pre: string) => [`${pre}-top`, `${pre}-right`, `${pre}-bottom`, `${pre}-left`]
+    const px4 = (pre: string, suf = '') => [`${pre}-top${suf}`, `${pre}-right${suf}`, `${pre}-bottom${suf}`, `${pre}-left${suf}`]
+    const clip = (s: string, n = 30) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
-    const rows: { k: string; v: string; edited: boolean }[] = []
-    const add = (k: string, v: string, props: string[] = []) => {
-      if (v) rows.push({ k, v, edited: changed(props) })
+    const changedSet = new Set(this.st()?.record.changes.map((c) => c.property) ?? [])
+    const stateCls = (props: string[], inherit = false): string => {
+      if (props.some((p) => changedSet.has(p))) return ' changed' // edited → green
+      return this.isAuthored(props, inherit) ? '' : ' auto' // authored white · else grey
     }
-    add('display', g('display'))
-    add('size', `${Math.round(parseFloat(g('width')) || 0)} × ${Math.round(parseFloat(g('height')) || 0)}`)
-    const pad = box('padding')
-    if (pad && pad !== '0px') add('padding', pad, px4('padding'))
-    const mar = box('margin')
-    if (mar && mar !== '0px') add('margin', mar, px4('margin'))
-    if (/flex|grid/.test(g('display'))) {
+
+    const rows: { k: string; v: string; cls: string }[] = []
+    const add = (k: string, v: string, props: string[], inherit = false) => {
+      if (v !== '' && v != null) rows.push({ k, v, cls: stateCls(props, inherit) })
+    }
+
+    const disp = g('display')
+    add('display', disp, ['display'])
+
+    const pos = g('position')
+    if (pos && pos !== 'static') {
+      add('position', pos, ['position'])
+      const inset = ['top', 'right', 'bottom', 'left'].filter((s) => g(s) !== 'auto').map((s) => `${s[0]} ${g(s)}`).join('  ')
+      if (inset) add('inset', inset, ['top', 'right', 'bottom', 'left'])
+    }
+
+    add('width', `${Math.round(parseFloat(g('width')) || 0)}px`, ['width'])
+    add('height', `${Math.round(parseFloat(g('height')) || 0)}px`, ['height'])
+    const maxw = g('max-width')
+    if (maxw && maxw !== 'none') add('max-w', maxw, ['max-width'])
+    const minh = g('min-height')
+    if (minh && minh !== '0px' && minh !== 'auto') add('min-h', minh, ['min-height'])
+
+    // flex / grid CONTAINER
+    if (/flex|grid/.test(disp)) {
+      if (disp.includes('flex')) add('direction', g('flex-direction'), ['flex-direction'])
+      add('justify', g('justify-content'), ['justify-content'])
+      add('align', g('align-items'), ['align-items'])
+      if (disp.includes('flex')) {
+        const w = g('flex-wrap')
+        if (w && w !== 'nowrap') add('wrap', w, ['flex-wrap'])
+      }
+      if (disp.includes('grid')) {
+        const c = g('grid-template-columns')
+        if (c && c !== 'none') add('grid-cols', clip(c), ['grid-template-columns'])
+      }
       const gap = g('gap')
-      if (gap && gap !== 'normal' && gap !== '0px') add('gap', gap, ['gap'])
+      if (gap && gap !== 'normal') add('gap', gap, ['gap', 'row-gap', 'column-gap'])
     }
-    add('font', `${g('font-size')} · ${g('font-weight')} · lh ${g('line-height')}`, [
-      'font-size',
-      'font-weight',
-      'line-height',
-    ])
-    const ls = g('letter-spacing')
-    if (ls && ls !== 'normal') add('tracking', ls, ['letter-spacing'])
-    add('color', swatch(g('color')), ['color'])
-    const bg = g('background-color')
-    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent')
-      add('background', swatch(bg), ['background-color'])
+
+    // flex / grid ITEM (parent is a flex/grid container)
+    let parentDisp = ''
+    try {
+      if (el.parentElement) parentDisp = getComputedStyle(el.parentElement).display
+    } catch {
+      /* noop */
+    }
+    if (/flex|grid/.test(parentDisp)) {
+      add('flex', `${g('flex-grow')} ${g('flex-shrink')} ${g('flex-basis')}`, ['flex-grow', 'flex-shrink', 'flex-basis'])
+      const as = g('align-self')
+      if (as && as !== 'auto' && as !== 'normal') add('self', as, ['align-self'])
+    }
+
+    const pad = sides(px4('padding'))
+    if (pad && pad !== '0px') add('padding', pad, px4('padding'))
+    const mar = sides(px4('margin'))
+    if (mar && mar !== '0px') add('margin', mar, px4('margin'))
+
     const bw = g('border-top-width')
     if (bw && parseFloat(bw) > 0)
-      add('border', `${bw} ${g('border-top-style')} ${hex(g('border-top-color'))}`, px4('border').map((p) => `${p}-width`))
-    const br = g('border-radius')
+      add('border', `${bw} ${g('border-top-style')} ${swatch(g('border-top-color'))}`, px4('border', '-width'))
+    const br = sides([
+      'border-top-left-radius',
+      'border-top-right-radius',
+      'border-bottom-right-radius',
+      'border-bottom-left-radius',
+    ])
     if (br && br !== '0px')
       add('radius', br, [
         'border-radius',
@@ -848,15 +967,46 @@ class Uivisor {
         'border-bottom-right-radius',
         'border-bottom-left-radius',
       ])
-    if (g('box-shadow') !== 'none' && g('box-shadow')) add('shadow', 'yes')
+
+    // typography (only when the element renders its own text) — inherited props
+    if (this.context(el).hasText) {
+      add('font-size', g('font-size'), ['font-size'], true)
+      add('weight', g('font-weight'), ['font-weight'], true)
+      add('line', g('line-height'), ['line-height'], true)
+      const ls = g('letter-spacing')
+      if (ls && ls !== 'normal') add('tracking', ls, ['letter-spacing'], true)
+      add('color', swatch(g('color')), ['color'], true)
+      const ta = g('text-align')
+      if (ta && ta !== 'start' && ta !== 'left') add('text-align', ta, ['text-align'], true)
+    }
+
+    const bg = g('background-color')
+    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') add('background', swatch(bg), ['background-color'])
+    const bgi = g('background-image')
+    if (bgi && bgi !== 'none') add('bg-image', clip(bgi, 26), ['background-image'])
+
+    const sh = g('box-shadow')
+    if (sh && sh !== 'none') add('shadow', clip(sh, 26), ['box-shadow'])
     const op = g('opacity')
-    if (op && parseFloat(op) < 1) add('opacity', op)
+    if (op && parseFloat(op) < 1) add('opacity', op, ['opacity'])
+    const ov = g('overflow')
+    if (ov && ov !== 'visible') add('overflow', ov, ['overflow', 'overflow-x', 'overflow-y'])
+    const z = g('z-index')
+    if (z && z !== 'auto') add('z-index', z, ['z-index'])
+    const tr = g('transform')
+    if (tr && tr !== 'none') add('transform', clip(tr, 22), ['transform'])
 
     const collapsed = this.collapsedSecs.has('Current styles')
+    const legend =
+      `<div class="uiv-leg"><span class="uiv-lg">file</span>` +
+      `<span class="uiv-lg edit">edited</span><span class="uiv-lg auto">auto</span></div>`
     const items = collapsed
       ? ''
-      : rows
-          .map((r) => `<div class="uiv-rrow"><span class="uiv-rk">${r.k}</span><span class="uiv-rv${r.edited ? ' changed' : ''}">${r.v}</span></div>`)
+      : legend +
+        rows
+          .map(
+            (r) => `<div class="uiv-rrow"><span class="uiv-rk">${r.k}</span><span class="uiv-rv${r.cls}">${r.v}</span></div>`,
+          )
           .join('')
     return `<div class="uiv-sec">${this.accordionTitle('Current styles')}<div class="uiv-readout">${items}</div></div>`
   }
