@@ -75,6 +75,8 @@ export default function RootLayout({ children }) {
 | `next dev --webpack` | ✅ | ✅ |
 
 > Чтобы отключить source-mapping под Turbopack: `withUivisor(config, { turbopack: false })` — оверлей продолжит работать, `file:line` доступен через `next dev --webpack`.
+>
+> Под Turbopack ставь uivisor **из npm** (`npm i -D uivisor`). Локальный `file:`-линк (`file:../uivisor`) Turbopack не резолвит для сабпасов вроде `uivisor/next/overlay` — будет `Module not found`. С webpack `file:`-линк работает.
 
 ---
 

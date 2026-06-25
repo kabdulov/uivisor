@@ -1,4 +1,5 @@
 import * as path from 'node:path'
+import { createRequire } from 'node:module'
 
 interface WebpackContext {
   dev: boolean
@@ -6,8 +7,10 @@ interface WebpackContext {
 }
 
 // Next config is intentionally loose-typed to avoid a hard dependency on `next`.
+// `webpack` is widened to `| null | undefined` so a real `NextConfig` from `next`
+// (whose `webpack?` is nullable) assigns to this param without a cast.
 type NextConfig = {
-  webpack?: (config: any, ctx: WebpackContext) => any
+  webpack?: ((config: any, ctx: WebpackContext) => any) | null
   turbopack?: any
   [key: string]: unknown
 }
@@ -27,12 +30,19 @@ export interface UivisorNextOptions {
 const isProd = () => process.env.NODE_ENV === 'production'
 const isTurbopack = () => !!process.env.TURBOPACK || !!process.env.TURBOPACK_DEV
 
-/** Next major version (for picking the right Turbopack config key), 0 if unknown. */
+/**
+ * Next major version, for picking the right Turbopack config key. 0 if unknown.
+ *
+ * Resolves the CONSUMER's installed `next` at runtime from their project cwd
+ * (where `next dev` runs). The require is built dynamically via createRequire so
+ * the bundler cannot statically inline `next/package.json` at uivisor build time —
+ * a literal `require('next/package.json')` gets baked to whatever `next` was
+ * present when uivisor was built, which silently picked the wrong config key.
+ */
 function nextMajor(): number {
   try {
-    // CJS: native require; ESM: provided by tsup `shims`.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return parseInt(require('next/package.json').version, 10) || 0
+    const req = createRequire(path.join(process.cwd(), 'package.json'))
+    return parseInt(req('next/package.json').version, 10) || 0
   } catch {
     return 0
   }

@@ -1,6 +1,6 @@
 {
   "name": "uivisor",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Dev-only visual UI tweaker that turns mouse edits into a precise, breakpoint-aware prompt for your AI coding agent — without touching your source.",
   "license": "MIT",
@@ -13,7 +13,16 @@
   "bugs": {
     "url": "https://github.com/kabdulov/uivisor/issues"
   },
-  "keywords": ["vite-plugin", "next", "turbopack", "react", "devtools", "ai", "visual-editing", "tailwind"],
+  "keywords": [
+    "vite-plugin",
+    "next",
+    "turbopack",
+    "react",
+    "devtools",
+    "ai",
+    "visual-editing",
+    "tailwind"
+  ],
   "exports": {
     "./vite": {
       "types": "./dist/vite/index.d.ts",
@@ -47,14 +56,19 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },
   "engines": {
     "node": ">=18"
   },
-  "workspaces": ["demo", "demo-next"],
+  "workspaces": [
+    "demo",
+    "demo-next"
+  ],
   "scripts": {
     "build": "rm -rf dist && tsup",
     "dev": "tsup --watch",
@@ -68,8 +82,12 @@
     "react": ">=18"
   },
   "peerDependenciesMeta": {
-    "vite": { "optional": true },
-    "react": { "optional": true }
+    "vite": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@babel/core": "^7.24.0"
