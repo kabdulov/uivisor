@@ -180,5 +180,46 @@ export function suggestUtility(property: string, value: string): string | null {
     return property === 'color' ? `text-[${hex}]` : `bg-[${hex}]`
   }
 
+  // Layout — display & flexbox alignment map to fixed Tailwind utilities.
+  const LAYOUT: Record<string, Record<string, string>> = {
+    display: {
+      block: 'block', 'inline-block': 'inline-block', inline: 'inline',
+      flex: 'flex', 'inline-flex': 'inline-flex', grid: 'grid',
+      'inline-grid': 'inline-grid', none: 'hidden',
+    },
+    'flex-direction': {
+      row: 'flex-row', 'row-reverse': 'flex-row-reverse',
+      column: 'flex-col', 'column-reverse': 'flex-col-reverse',
+    },
+    'flex-wrap': { nowrap: 'flex-nowrap', wrap: 'flex-wrap', 'wrap-reverse': 'flex-wrap-reverse' },
+    'justify-content': {
+      normal: 'justify-normal', 'flex-start': 'justify-start', center: 'justify-center',
+      'flex-end': 'justify-end', 'space-between': 'justify-between',
+      'space-around': 'justify-around', 'space-evenly': 'justify-evenly',
+    },
+    'align-items': {
+      normal: 'items-normal', stretch: 'items-stretch', 'flex-start': 'items-start',
+      center: 'items-center', 'flex-end': 'items-end', baseline: 'items-baseline',
+    },
+  }
+  if (LAYOUT[property]) return LAYOUT[property][value.trim()] ?? null
+
+  // Sizing — width / height / min / max. Tailwind's spacing scale is value/4.
+  const SIZE_PREFIX: Record<string, string> = {
+    width: 'w', height: 'h', 'min-width': 'min-w', 'max-width': 'max-w',
+    'min-height': 'min-h', 'max-height': 'max-h',
+  }
+  if (SIZE_PREFIX[property]) {
+    const pre = SIZE_PREFIX[property]
+    const t = value.trim()
+    if (t === 'auto') return `${pre}-auto`
+    if (t === '100%') return `${pre}-full`
+    const n = px(t)
+    if (n == null) return `${pre}-[${t}]`
+    const scale = n / 4
+    if (Number.isInteger(scale) && scale >= 0 && scale <= 96) return `${pre}-${scale}`
+    return `${pre}-[${n}px]`
+  }
+
   return null
 }

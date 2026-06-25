@@ -50,6 +50,11 @@ class Uivisor {
   private selected: HTMLElement | null = null
   private states = new Map<HTMLElement, ElState>()
   private expanded = new Set<string>()
+  /** Section titles collapsed in the accordion (per session). */
+  private collapsedSecs = new Set<string>()
+  /** Cached live computed-style for the selected element (invalidated on reselect). */
+  private _cs: CSSStyleDeclaration | null = null
+  private _csEl: HTMLElement | null = null
   /** Cached project breakpoint system (detected from CSS), refreshed until found. */
   private _bp: BreakpointSystem | null = null
 
@@ -426,11 +431,29 @@ class Uivisor {
     return this.selected ? this.states.get(this.selected) ?? null : null
   }
 
+  /** Live computed value of the selected element — reflects the CURRENT breakpoint
+   *  (the virtual screen's width / real window), unlike the at-selection snapshot. */
+  private computedVal(css: string): string {
+    const el = this.selected
+    if (!el) return ''
+    if (this._csEl !== el || !this._cs) {
+      try {
+        this._cs = getComputedStyle(el)
+        this._csEl = el
+      } catch {
+        return ''
+      }
+    }
+    return this._cs.getPropertyValue(css).trim()
+  }
+
   private liveVal(css: string): string {
     const el = this.selected
     const st = this.st()
     if (!el || !st) return ''
-    return el.style.getPropertyValue(css) || st.original[css] || ''
+    // User override wins; otherwise the element's *current* computed value so the
+    // controls track the active breakpoint (snapshot is only a last-resort fallback).
+    return el.style.getPropertyValue(css) || this.computedVal(css) || st.original[css] || ''
   }
 
   private liveNum(css: string): number | null {
@@ -727,10 +750,13 @@ class Uivisor {
     const op = g('opacity')
     if (op && parseFloat(op) < 1) add('opacity', op)
 
-    const items = rows
-      .map((r) => `<div class="uiv-rrow"><span class="uiv-rk">${r.k}</span><span class="uiv-rv${r.edited ? ' changed' : ''}">${r.v}</span></div>`)
-      .join('')
-    return `<div class="uiv-sec"><div class="uiv-sectitle">Current styles</div><div class="uiv-readout">${items}</div></div>`
+    const collapsed = this.collapsedSecs.has('Current styles')
+    const items = collapsed
+      ? ''
+      : rows
+          .map((r) => `<div class="uiv-rrow"><span class="uiv-rk">${r.k}</span><span class="uiv-rv${r.edited ? ' changed' : ''}">${r.v}</span></div>`)
+          .join('')
+    return `<div class="uiv-sec">${this.accordionTitle('Current styles')}<div class="uiv-readout">${items}</div></div>`
   }
 
   /** Breakpoint scope switcher: shows the PROJECT's breakpoints + the live window one. */
@@ -798,9 +824,21 @@ class Uivisor {
     return SECTIONS.map((sec) => {
       const controls = sec.controls.filter((c) => this.relevant(c, ctx))
       if (!controls.length) return ''
-      const rows = controls.map((c) => this.controlRow(c)).join('')
-      return `<div class="uiv-sec"><div class="uiv-sectitle">${sec.title}</div>${rows}</div>`
+      const rows = this.collapsedSecs.has(sec.title)
+        ? ''
+        : controls.map((c) => this.controlRow(c)).join('')
+      return `<div class="uiv-sec">${this.accordionTitle(sec.title)}${rows}</div>`
     }).join('')
+  }
+
+  /** A collapsible section header. Clicking it hides/shows the section's controls. */
+  private accordionTitle(title: string): string {
+    const collapsed = this.collapsedSecs.has(title)
+    return (
+      `<button class="uiv-sectitle uiv-acc${collapsed ? ' collapsed' : ''}" data-sec="${escapeAttr(title)}">` +
+      `<span class="uiv-chev">${ICONS.chevron}</span>${title}` +
+      `</button>`
+    )
   }
 
   private numField(
@@ -950,7 +988,9 @@ class Uivisor {
 
     if (c.kind === 'select') {
       const cur = this.selectCurrent(c.css)
-      const opts = c.options
+      // Show the element's actual current value even if it's not in our preset list.
+      const optList = cur && !c.options.includes(cur) ? [cur, ...c.options] : c.options
+      const opts = optList
         .map((o) => `<option value="${o}"${o === cur ? ' selected' : ''}>${o}</option>`)
         .join('')
       return (
@@ -1011,6 +1051,15 @@ class Uivisor {
       btn.addEventListener('click', () => {
         if (this.expanded.has(key)) this.expanded.delete(key)
         else this.expanded.add(key)
+        this.renderBody()
+      })
+    })
+    root.querySelectorAll('.uiv-acc').forEach((node) => {
+      const btn = node as HTMLElement
+      const sec = btn.getAttribute('data-sec')!
+      btn.addEventListener('click', () => {
+        if (this.collapsedSecs.has(sec)) this.collapsedSecs.delete(sec)
+        else this.collapsedSecs.add(sec)
         this.renderBody()
       })
     })

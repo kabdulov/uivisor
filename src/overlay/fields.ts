@@ -81,9 +81,61 @@ export const ICONS = {
   tracking: sv('<path d="M5 4 V12 M11 4 V12"/><path d="M2.5 8 H4 M1.8 6.6 L0.8 8 L1.8 9.4"/><path d="M13.5 8 H12 M14.2 6.6 L15.2 8 L14.2 9.4"/>'),
   expand: sv('<rect x="2" y="2" width="4.5" height="4.5" rx="1"/><rect x="9.5" y="2" width="4.5" height="4.5" rx="1"/><rect x="2" y="9.5" width="4.5" height="4.5" rx="1"/><rect x="9.5" y="9.5" width="4.5" height="4.5" rx="1"/>'),
   collapse: sv('<rect x="3" y="3" width="10" height="10" rx="2"/>'),
+  layout: sv('<rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M6 2.5 V13.5 M6 6 H13.5"/>'),
+  width: sv('<path d="M1.5 8 H14.5 M4 5 L1.5 8 L4 11 M12 5 L14.5 8 L12 11"/>'),
+  height: sv('<path d="M8 1.5 V14.5 M5 4 L8 1.5 L11 4 M5 12 L8 14.5 L11 12"/>'),
+  chevron: sv('<path d="M6 4 L10 8 L6 12"/>'),
 }
 
 export const SECTIONS: Section[] = [
+  {
+    title: 'Layout',
+    controls: [
+      {
+        kind: 'select',
+        css: 'display',
+        label: 'Display',
+        options: ['block', 'inline-block', 'inline', 'flex', 'inline-flex', 'grid', 'inline-grid', 'none'],
+      },
+      {
+        kind: 'select',
+        css: 'flex-direction',
+        label: 'Direction',
+        options: ['row', 'row-reverse', 'column', 'column-reverse'],
+        requires: 'flexgrid',
+      },
+      {
+        kind: 'select',
+        css: 'justify-content',
+        label: 'Justify',
+        options: ['normal', 'flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'],
+        requires: 'flexgrid',
+      },
+      {
+        kind: 'select',
+        css: 'align-items',
+        label: 'Align',
+        options: ['normal', 'stretch', 'flex-start', 'center', 'flex-end', 'baseline'],
+        requires: 'flexgrid',
+      },
+      {
+        kind: 'select',
+        css: 'flex-wrap',
+        label: 'Wrap',
+        options: ['nowrap', 'wrap', 'wrap-reverse'],
+        requires: 'flexgrid',
+      },
+    ],
+  },
+  {
+    title: 'Size',
+    controls: [
+      { kind: 'len', css: 'width', label: 'Width', icon: ICONS.width },
+      { kind: 'len', css: 'height', label: 'Height', icon: ICONS.height },
+      { kind: 'len', css: 'max-width', label: 'Max W', icon: ICONS.width },
+      { kind: 'len', css: 'min-height', label: 'Min H', icon: ICONS.height },
+    ],
+  },
   {
     title: 'Spacing',
     controls: [

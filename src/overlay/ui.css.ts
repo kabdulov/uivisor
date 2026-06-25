@@ -119,6 +119,17 @@ export const CSS = /* css */ `
   letter-spacing: .5px; color: #8b8b94; font-weight: 600; }
 .uiv-sec + .uiv-sec .uiv-sectitle { margin-top: 0; }
 
+/* collapsible (accordion) section header */
+.uiv-acc { display: flex; align-items: center; gap: 5px; width: 100%;
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+  color: #8b8b94; font-weight: 600; }
+.uiv-acc:hover { color: #c7d2fe; }
+.uiv-acc.collapsed { margin-bottom: 0; }
+.uiv-chev { display: inline-flex; color: #6b6b73; transition: transform .15s ease; }
+.uiv-acc:hover .uiv-chev { color: #818cf8; }
+.uiv-acc:not(.collapsed) .uiv-chev { transform: rotate(90deg); }
+
 .uiv-ctl { display: grid; grid-template-columns: 70px 1fr 26px; gap: 8px;
   align-items: center; margin-bottom: 7px; }
 .uiv-ctl:last-child { margin-bottom: 0; }
