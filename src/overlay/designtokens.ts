@@ -11,6 +11,8 @@
  * size — so ambiguous prefixes resolve correctly.
  */
 
+import { rgbToHex } from './tokens.js'
+
 export type TokenCategory =
   | 'color'
   | 'font-size'
@@ -164,8 +166,13 @@ export function nearestToken(
   if (!list || !list.length) return null
 
   if (target.value != null) {
-    const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase()
-    const hit = list.find((t) => norm(t.value) === norm(target.value!))
+    // Normalise colours through hex so computed rgb() matches an authored #hex.
+    const norm = (s: string) => {
+      const t = s.trim()
+      return (rgbToHex(t) || t).replace(/\s+/g, '').toLowerCase()
+    }
+    const want = norm(target.value)
+    const hit = list.find((t) => norm(t.value) === want)
     if (hit) return { token: hit, exact: true }
   }
   if (target.px != null && list.some((t) => t.px != null)) {

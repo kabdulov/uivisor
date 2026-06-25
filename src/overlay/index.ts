@@ -531,7 +531,10 @@ class Uivisor {
     if (!el || !st) return ''
     // User override wins; otherwise the element's *current* computed value so the
     // controls track the active breakpoint (snapshot is only a last-resort fallback).
-    return el.style.getPropertyValue(css) || this.computedVal(css) || st.original[css] || ''
+    // A var() override (a design token) resolves to its computed value for display.
+    const inline = el.style.getPropertyValue(css)
+    if (inline && !inline.includes('var(')) return inline
+    return this.computedVal(css) || st.original[css] || ''
   }
 
   private liveNum(css: string): number | null {
@@ -614,7 +617,7 @@ class Uivisor {
     for (const css of props) {
       for (const e of sibs) removeOverride(e, css)
       const c = st.record.changes.find((ch) => ch.property === css)
-      if (c) for (const e of targets) applyOverride(e, css, c.after.computed)
+      if (c) for (const e of targets) applyOverride(e, css, c.live ?? c.after.computed)
     }
     this.reposition()
   }
@@ -642,22 +645,24 @@ class Uivisor {
     this.renderBody()
   }
 
-  /** Apply a design-system token to a property: set its resolved value live and
-   *  annotate the recorded change so the prompt asks the agent for the token. */
+  /** Apply a design-system token to a property. The LIVE override is `var(--token)`
+   *  so a responsive token keeps adapting as you move across breakpoints; the
+   *  recorded value shows the token's value, tagged so the prompt asks for the token. */
   private applyToken(css: string, token: DesignToken): void {
     this.pushHistory()
-    this.liveSet([css], token.value)
-    this.recordProps([css]) // builds + records the change (renders once)
+    const live = `var(${token.cssVar})`
+    this.liveSet([css], live)
     const st = this.st()
     if (!st) return
     const scope = this.activeScope()
-    const ch = st.record.changes.find((c) => c.property === css && c.breakpoint === scope.name)
-    if (ch) {
-      ch.after.designToken = token.cssVar
-      // Prefer a real Tailwind utility when the project exposes one; else var() form.
-      ch.after.token =
-        st.record.styling.primaryMechanism === 'tailwind' ? this.dsUtility(css, token) : null
-    }
+    st.applied.add(css)
+    const change = buildChange(css, st.original[css], token.value, scope)
+    change.live = live // re-applied on undo/redo & target switch (keeps the var)
+    change.after.designToken = token.cssVar
+    // Prefer a real Tailwind utility when the project exposes one; else var() form.
+    change.after.token =
+      st.record.styling.primaryMechanism === 'tailwind' ? this.dsUtility(css, token) : null
+    this.setChange(st.record, change)
     this.renderBody()
   }
 
@@ -1051,6 +1056,25 @@ class Uivisor {
     const edited = this.st()?.record.changes.some(
       (c) => c.property === css && c.after.designToken,
     )
+
+    // Colours render as swatch cards (you see the actual colour); other categories
+    // use a labelled <select>.
+    if (cat === 'color') {
+      const swatches = list
+        .map((t) => {
+          const on = near?.exact && near.token.cssVar === t.cssVar
+          return (
+            `<button class="uiv-swatch${on ? ' on' : ''}" data-css="${css}" data-var="${escapeAttr(t.cssVar)}" ` +
+            `title="${escapeAttr(`${t.name} · ${t.value}`)}" style="background:${escapeAttr(t.value)}"></button>`
+          )
+        })
+        .join('')
+      return (
+        `<div class="uiv-ctl"><span class="clabel uiv-tlabel">${label}</span>` +
+        `<div class="cfield uiv-swatches">${swatches}</div><span></span></div>`
+      )
+    }
+
     const head = `<option value="">${near && !near.exact ? `≈ ${escapeHtml(near.token.name)} · pick token` : '— pick token —'}</option>`
     const opts = list
       .map(
@@ -1190,6 +1214,15 @@ class Uivisor {
       sel.addEventListener('change', () => {
         if (!sel.value) return
         const token = this.designSystem().tokens.find((t) => t.cssVar === sel.value)
+        if (token) this.applyToken(css, token)
+      })
+    })
+    root.querySelectorAll('.uiv-swatch').forEach((node) => {
+      const btn = node as HTMLElement
+      const css = btn.getAttribute('data-css')!
+      const cssVar = btn.getAttribute('data-var')!
+      btn.addEventListener('click', () => {
+        const token = this.designSystem().tokens.find((t) => t.cssVar === cssVar)
         if (token) this.applyToken(css, token)
       })
     })
@@ -1364,7 +1397,9 @@ class Uivisor {
     const chgs = collapseChanges(r.changes)
       .map((c) => {
         const bp = c.breakpoint === 'base' ? '' : `<span class="bp">${c.breakpoint}:</span> `
-        const tok = c.after.token ? ` <span class="tok">${escapeHtml(c.after.token)}</span>` : ''
+        // Prefer the utility class; else show the design-token variable; else nothing.
+        const tokLabel = c.after.token || (c.after.designToken ? `var(${c.after.designToken})` : '')
+        const tok = tokLabel ? ` <span class="tok">${escapeHtml(tokLabel)}</span>` : ''
         return `<div class="uiv-jchg">${bp}${c.property}: ${c.before.computed} → ${c.after.computed}${tok}</div>`
       })
       .join('')
@@ -1459,7 +1494,7 @@ class Uivisor {
       this.states.set(ent.el, st)
       const targets = st.record.target === 'all' ? this.siblingsOf(ent.el) : [ent.el]
       for (const c of st.record.changes) {
-        for (const e of targets) applyOverride(e, c.property, c.after.computed)
+        for (const e of targets) applyOverride(e, c.property, c.live ?? c.after.computed)
         st.applied.add(c.property)
       }
     }

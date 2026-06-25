@@ -59,6 +59,10 @@ export interface ChangeEntry {
   breakpointPx: number
   /** Pseudo-state context if any, e.g. ":hover" — reserved, null for MVP. */
   state: string | null
+  /** Exact inline value to apply for the live preview when it differs from
+   *  `after.computed` — e.g. "var(--text-headline)" for a design token (so a
+   *  responsive token keeps adapting), while `after.computed` shows its value. */
+  live?: string
 }
 
 export interface EditRecord {

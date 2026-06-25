@@ -116,6 +116,12 @@ export const CSS = /* css */ `
 .uiv-ctl select.uiv-tokensel:hover { border-color: #6366f1; color: #fff; }
 .uiv-ctl select.uiv-tokensel:focus { border-color: #818cf8; }
 .uiv-ctl select.uiv-tokensel.changed { border-color: #4ade80; color: #86efac; }
+.uiv-swatches { display: flex; flex-wrap: wrap; gap: 5px; }
+.uiv-swatch { width: 20px; height: 20px; border-radius: 5px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.18); padding: 0; outline: none;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+.uiv-swatch:hover { transform: scale(1.12); border-color: #fff; }
+.uiv-swatch.on { box-shadow: 0 0 0 2px #18181b, 0 0 0 3.5px #4ade80; border-color: #4ade80; }
 
 /* ---- current-styles readout ---- */
 .uiv-readout { display: flex; flex-direction: column; gap: 3px; }
