@@ -40,6 +40,12 @@ interface ElContext {
   flexGrid: boolean
 }
 
+/** One undo/redo frame: every element's full edit state + the selection. */
+interface HistorySnap {
+  selected: HTMLElement | null
+  entries: { el: HTMLElement; record: EditRecord; original: Record<string, string>; dimUnit: Record<string, string> }[]
+}
+
 let counter = 0
 const round2 = (n: number) => Math.round(n * 100) / 100
 
@@ -52,6 +58,9 @@ class Uivisor {
   private expanded = new Set<string>()
   /** Section titles collapsed in the accordion (per session). */
   private collapsedSecs = new Set<string>()
+  /** Undo / redo stacks of full edit-state snapshots. */
+  private undoStack: HistorySnap[] = []
+  private redoStack: HistorySnap[] = []
   /** Cached live computed-style for the selected element (invalidated on reselect). */
   private _cs: CSSStyleDeclaration | null = null
   private _csEl: HTMLElement | null = null
@@ -325,8 +334,8 @@ class Uivisor {
       const up = () => {
         handle.removeEventListener('pointermove', move)
         handle.removeEventListener('pointerup', up)
-        // dragging changed the frame's breakpoint → re-tag edits + refresh chips
-        this.retagSelected()
+        // The frame's breakpoint changed → refresh chips/hint. Existing edits keep
+        // their own breakpoint tags; only NEW edits scope to the current width.
         this.renderBody()
       }
       handle.addEventListener('pointermove', move)
@@ -366,7 +375,21 @@ class Uivisor {
     if (e.altKey && (e.key === 'u' || e.key === 'U')) {
       e.preventDefault()
       this.toggle()
-    } else if (e.key === 'Escape' && this.enabled) {
+      return
+    }
+    if (!this.enabled) return
+    // Undo / redo: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Ctrl+Y).
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault()
+      e.shiftKey ? this.redo() : this.undo()
+      return
+    }
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault()
+      this.redo()
+      return
+    }
+    if (e.key === 'Escape') {
       if (this.selected) this.select(null)
       else this.toggle(false)
     }
@@ -550,17 +573,6 @@ class Uivisor {
     return currentBreakpoint(sys)
   }
 
-  /** Re-tag the selected element's already-recorded changes to the current scope. */
-  private retagSelected(): void {
-    const st = this.st()
-    if (!st) return
-    const scope = this.activeScope()
-    for (const c of st.record.changes) {
-      c.breakpoint = scope.name
-      c.breakpointPx = scope.minWidth
-    }
-  }
-
   private recordProps(cssList: string[]): void {
     const el = this.selected
     const st = this.st()
@@ -647,7 +659,7 @@ class Uivisor {
       body.innerHTML = `
         ${this.breakpointBarHtml()}
         <div class="uiv-empty">Click any element ${this.responsive ? 'in the frame' : 'on the page'} to select it.</div>
-        <div class="uiv-hint">Alt+U toggles · Esc deselects. Tweaks stay in the browser — nothing is written to your code.</div>
+        <div class="uiv-hint">Alt+U toggles · Esc deselects · ⌘/Ctrl+Z undo, ⇧ to redo. Tweaks stay in the browser — nothing is written to your code.</div>
         ${this.journalHtml()}
       `
       this.bindControls()
@@ -1016,7 +1028,10 @@ class Uivisor {
       const cssList = (box.getAttribute('data-css') || '').split(',').filter(Boolean)
       const input = box.querySelector('input') as HTMLInputElement
       const handle = box.querySelector('.uiv-scrub') as HTMLElement
-      input.addEventListener('change', () => this.commitNumeric(cssList, input.value))
+      input.addEventListener('change', () => {
+        this.pushHistory()
+        this.commitNumeric(cssList, input.value)
+      })
       input.addEventListener('keydown', (e) => {
         if ((e as KeyboardEvent).key === 'Enter') input.blur()
       })
@@ -1028,7 +1043,10 @@ class Uivisor {
       const input = box.querySelector('input') as HTMLInputElement
       const unitSel = box.querySelector('.uiv-unit') as HTMLSelectElement
       const handle = box.querySelector('.uiv-scrub') as HTMLElement
-      input.addEventListener('change', () => this.onDimInput(css, box))
+      input.addEventListener('change', () => {
+        this.pushHistory()
+        this.onDimInput(css, box)
+      })
       input.addEventListener('keydown', (e) => {
         if ((e as KeyboardEvent).key === 'Enter') input.blur()
       })
@@ -1038,12 +1056,18 @@ class Uivisor {
     root.querySelectorAll('.uiv-color').forEach((node) => {
       const input = node as HTMLInputElement
       const css = input.getAttribute('data-css')!
-      input.addEventListener('change', () => this.commitValue([css], input.value))
+      input.addEventListener('change', () => {
+        this.pushHistory()
+        this.commitValue([css], input.value)
+      })
     })
     root.querySelectorAll('.uiv-sel').forEach((node) => {
       const sel = node as HTMLSelectElement
       const css = sel.getAttribute('data-css')!
-      sel.addEventListener('change', () => this.commitValue([css], sel.value))
+      sel.addEventListener('change', () => {
+        this.pushHistory()
+        this.commitValue([css], sel.value)
+      })
     })
     root.querySelectorAll('.uiv-expand').forEach((node) => {
       const btn = node as HTMLElement
@@ -1074,7 +1098,8 @@ class Uivisor {
           return
         }
         // Clicking a breakpoint resizes the virtual screen to it (entering
-        // responsive mode if needed) and scopes edits to that breakpoint.
+        // responsive mode if needed). NEW edits scope to this breakpoint; edits
+        // already recorded at other breakpoints keep their own tags.
         const w =
           bp === 'base'
             ? 390
@@ -1084,7 +1109,6 @@ class Uivisor {
           this.toggleResponsive(true) // applies frameWidth + renders
         } else {
           this.setFrameWidth(w)
-          this.retagSelected()
           this.renderBody()
         }
       })
@@ -1094,6 +1118,7 @@ class Uivisor {
       const target = btn.getAttribute('data-target')!
       btn.addEventListener('click', () => {
         const st = this.st()
+        if (st && st.record.target !== target) this.pushHistory()
         if (st) st.record.target = target
         this.reapplyForTarget()
         this.renderBody()
@@ -1105,7 +1130,9 @@ class Uivisor {
         const st = this.st()
         if (!st) return
         const name = input.value.trim().replace(/^\./, '').replace(/\s+/g, '-')
-        st.record.target = name ? `new:${name}` : 'element'
+        const next = name ? `new:${name}` : 'element'
+        if (st.record.target !== next) this.pushHistory()
+        st.record.target = next
         this.renderBody()
       })
       input.addEventListener('keydown', (e) => {
@@ -1124,7 +1151,12 @@ class Uivisor {
       } catch {
         /* noop */
       }
+      let pushed = false
       const move = (ev: PointerEvent) => {
+        if (!pushed) {
+          this.pushHistory() // one undo step per drag
+          pushed = true
+        }
         const dx = ev.clientX - startX
         let nv = start + Math.round(dx)
         if (ev.shiftKey) nv = Math.round(nv / 10) * 10
@@ -1163,7 +1195,12 @@ class Uivisor {
         /* noop */
       }
       const stepFor = (u: string) => (u === '' ? 0.1 : u === 'em' ? 0.01 : 1)
+      let pushed = false
       const move = (ev: PointerEvent) => {
+        if (!pushed) {
+          this.pushHistory() // one undo step per drag
+          pushed = true
+        }
         const u = unitSel.value
         const step = stepFor(u) * (ev.shiftKey ? 10 : 1)
         const dec = step < 0.1 ? 2 : step < 1 ? 1 : 0
@@ -1241,6 +1278,7 @@ class Uivisor {
     if (!el) return
     const st = this.states.get(el)
     if (!st) return
+    if (st.record.changes.length) this.pushHistory()
     const sibs = this.siblingsOf(el)
     for (const css of st.applied) for (const e of sibs) removeOverride(e, css)
     st.applied.clear()
@@ -1250,6 +1288,7 @@ class Uivisor {
   }
 
   private clearAll(): void {
+    if (this.states.size) this.pushHistory()
     for (const [el, st] of this.states) {
       const sibs = this.siblingsOf(el)
       for (const css of st.applied) for (const e of sibs) removeOverride(e, css)
@@ -1258,6 +1297,65 @@ class Uivisor {
     this.selected = null
     this.reposition()
     this.renderBody()
+  }
+
+  // ---- undo / redo ----
+  /** Deep snapshot of all edit state (element refs kept; data JSON-cloned). */
+  private cloneSnap(): HistorySnap {
+    const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
+    return {
+      selected: this.selected,
+      entries: [...this.states.entries()].map(([el, st]) => ({
+        el,
+        record: clone(st.record),
+        original: { ...st.original },
+        dimUnit: { ...st.dimUnit },
+      })),
+    }
+  }
+
+  /** Record the current state so the next mutation can be undone. */
+  private pushHistory(): void {
+    this.undoStack.push(this.cloneSnap())
+    if (this.undoStack.length > 100) this.undoStack.shift()
+    this.redoStack = []
+  }
+
+  /** Rebuild all edit state from a snapshot and re-apply its live overrides. */
+  private applySnap(snap: HistorySnap): void {
+    const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
+    // strip every override we currently have applied (siblings included)
+    for (const [el, st] of this.states) {
+      const sibs = this.siblingsOf(el)
+      for (const css of st.applied) for (const e of sibs) removeOverride(e, css)
+    }
+    this.states = new Map()
+    for (const ent of snap.entries) {
+      const st: ElState = { record: clone(ent.record), original: { ...ent.original }, applied: new Set(), dimUnit: { ...ent.dimUnit } }
+      this.states.set(ent.el, st)
+      const targets = st.record.target === 'all' ? this.siblingsOf(ent.el) : [ent.el]
+      for (const c of st.record.changes) {
+        for (const e of targets) applyOverride(e, c.property, c.after.computed)
+        st.applied.add(c.property)
+      }
+    }
+    this.selected = snap.selected && this.states.has(snap.selected) ? snap.selected : null
+    this.reposition()
+    this.renderBody()
+  }
+
+  private undo(): void {
+    if (!this.undoStack.length) return this.showToast('Nothing to undo')
+    this.redoStack.push(this.cloneSnap())
+    this.applySnap(this.undoStack.pop()!)
+    this.showToast('Undo ↩')
+  }
+
+  private redo(): void {
+    if (!this.redoStack.length) return this.showToast('Nothing to redo')
+    this.undoStack.push(this.cloneSnap())
+    this.applySnap(this.redoStack.pop()!)
+    this.showToast('Redo ↪')
   }
 
   private async copy(text: string): Promise<void> {
