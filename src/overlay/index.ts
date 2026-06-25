@@ -377,7 +377,7 @@ class Uivisor {
     const host = this.q('.uiv-framehost')
     host.style.width = `${this.frameWidth}px`
     const bp = activeBreakpoint(this.frameWidth, this.bpSystem()).name
-    this.q('.uiv-framew').textContent = `${this.frameWidth}px · ${bp}`
+    this.q('.uiv-framew').textContent = `${this.frameWidth}px · ${this.bpLabel(bp)}`
     this.updateBp()
     this.reposition()
   }
@@ -937,7 +937,7 @@ class Uivisor {
   private ctlLabel(label: string, props: string[]): string {
     const from = this.inheritedFrom(props)
     const badge = from
-      ? ` <span class="uiv-inh" title="inherited from ${escapeAttr(from)} — not set at this breakpoint">⤣${escapeHtml(from)}</span>`
+      ? ` <span class="uiv-inh" title="inherited from ${escapeAttr(this.bpLabel(from))} — not set at this breakpoint">⤣${escapeHtml(this.bpLabel(from))}</span>`
       : ''
     return `<span class="clabel">${label}${badge}</span>`
   }
@@ -1098,33 +1098,37 @@ class Uivisor {
     return `<div class="uiv-sec">${this.accordionTitle('Current styles')}<div class="uiv-readout">${items}</div></div>`
   }
 
+  /** Display label for a breakpoint name — the unprefixed "base" scope reads "all"
+   *  (applies to every size by default); internal key stays "base". */
+  private bpLabel(name: string): string {
+    return name === 'base' ? 'all' : name
+  }
+
   /** A device icon for a breakpoint chip, by its threshold (size proxy). */
   private bpIcon(name: string): string {
     if (name === 'live') return ICONS.live
-    const px = name === 'base' ? 0 : this.bpSystem().breakpoints.find((b) => b.name === name)?.minWidth ?? 0
+    if (name === 'base') return ICONS.all
+    const px = this.bpSystem().breakpoints.find((b) => b.name === name)?.minWidth ?? 0
     if (px < 768) return ICONS.phone
     if (px < 1024) return ICONS.tablet
     return ICONS.desktop
   }
 
-  /** Breakpoint chips (Live + each project breakpoint) with device icons. Reused by
-   *  the panel (Live mode) and the bar over the virtual screen (responsive mode). */
+  /** Breakpoint chips with icons. Order: "all" (base, the default) → Live → each
+   *  project breakpoint. Reused by the panel (Live) and the over-frame bar. */
   private breakpointChipsHtml(): string {
     const sys = this.bpSystem()
-    const names = ['base', ...sys.breakpoints.map((b) => b.name)]
     const frameBp = this.responsive ? activeBreakpoint(this.frameWidth, sys).name : null
     const winBp = currentBreakpoint(sys).name
+    const isActive = (n: string) => (this.responsive ? n === frameBp : n === winBp)
     const chip = (n: string, on: boolean, title: string) =>
-      `<button class="uiv-chip${on ? ' on' : ''}" data-bp="${n}" title="${escapeAttr(title)}">${this.bpIcon(n)}<span>${n === 'live' ? 'Live' : n}</span></button>`
+      `<button class="uiv-chip${on ? ' on' : ''}" data-bp="${n}" title="${escapeAttr(title)}">${this.bpIcon(n)}<span>${n === 'live' ? 'Live' : this.bpLabel(n)}</span></button>`
+    const all = chip('base', isActive('base'), 'No breakpoint — applies to every size by default')
     const live = chip('live', !this.responsive, 'Follow your real browser window')
-    const chips = names
-      .map((n) => {
-        const active = this.responsive ? n === frameBp : n === winBp
-        const px = n === 'base' ? 0 : sys.breakpoints.find((b) => b.name === n)!.minWidth
-        return chip(n, active, sys.dir === 'min' ? `≥ ${px}px` : `≤ ${px}px`)
-      })
+    const rest = sys.breakpoints
+      .map((b) => chip(b.name, isActive(b.name), sys.dir === 'min' ? `≥ ${b.minWidth}px` : `≤ ${b.minWidth}px`))
       .join('')
-    return live + chips
+    return all + live + rest
   }
 
   /** Panel breakpoint bar — shown only in Live mode (in responsive mode the bar
@@ -1139,7 +1143,7 @@ class Uivisor {
       sys.dir === 'min'
         ? `Mobile-first: an edit applies to this breakpoint and <b>wider</b>.`
         : `Desktop-first: an edit applies to this breakpoint and <b>narrower</b>.`
-    const hint = `Live — window <b>${liveW}px</b> = <b>${winBp}</b>. ${cascade} Click a size to shrink the screen.`
+    const hint = `Live — window <b>${liveW}px</b> = <b>${this.bpLabel(winBp)}</b>. ${cascade} Click a size to shrink the screen.`
     return `<div class="uiv-sec"><div class="uiv-sectitle">Screen / breakpoint${detected}</div><div class="uiv-chips">${this.breakpointChipsHtml()}</div><div class="uiv-bphint">${hint}</div></div>`
   }
 
