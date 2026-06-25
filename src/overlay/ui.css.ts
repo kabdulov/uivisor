@@ -135,11 +135,15 @@ export const CSS = /* css */ `
 .uiv-ctl.st-file > .clabel { color: #e4e4e7; }
 .uiv-ctl.st-edited > .clabel { color: #4ade80; }
 .uiv-ctl.st-auto > .clabel { color: #6b7280; }
+.uiv-ctl.st-inherit > .clabel { color: #38bdf8; } /* value cascaded from another bp */
+.uiv-inh { font-size: 9px; font-weight: 700; color: #38bdf8; font-family: ui-monospace, monospace;
+  background: #0c4a6e55; border: 1px solid #0369a1; border-radius: 4px; padding: 0 3px; margin-left: 2px; }
 .uiv-leg { display: flex; gap: 12px; padding: 8px 12px 2px; font-size: 9px;
   text-transform: uppercase; letter-spacing: .4px; }
 .uiv-lg { color: #e4e4e7; display: flex; align-items: center; gap: 4px; } /* file = white */
 .uiv-lg::before { content: ''; width: 7px; height: 7px; border-radius: 2px; background: currentColor; }
 .uiv-lg.edit { color: #4ade80; }
+.uiv-lg.inh { color: #38bdf8; }
 .uiv-lg.auto { color: #6b7280; }
 .uiv-sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px;
   border: 1px solid rgba(255,255,255,0.2); flex: 0 0 auto; }

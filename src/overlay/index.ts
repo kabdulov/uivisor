@@ -3,6 +3,7 @@ import {
   activeBreakpoint,
   currentBreakpoint,
   detectBreakpoints,
+  effectiveBreakpoint,
 } from './breakpoint.js'
 import type { BreakpointSystem } from './types.js'
 import {
@@ -542,10 +543,9 @@ class Uivisor {
     const el = this.selected
     const st = this.st()
     if (!el || !st) return ''
-    // A change recorded for the ACTIVE breakpoint wins — so padding edited to 20 at
-    // xl shows 20 at xl even if you later set 10 at md (each breakpoint keeps its own).
-    const scope = this.activeScope()
-    const ch = st.record.changes.find((c) => c.property === css && c.breakpoint === scope.name)
+    // The change that wins the cascade at this width — set here OR inherited from a
+    // neighbour (padding 20 at md shows 20 at md AND lg/xl until overridden).
+    const ch = this.effectiveChange(css)
     if (ch) {
       const v = ch.live ?? ch.after.computed
       return v.includes('var(') ? this.computedVal(css) || v : v
@@ -643,16 +643,27 @@ class Uivisor {
    * inline override leaking across all of them.
    */
   private reapplyScope(): void {
-    const scope = this.activeScope()
+    const width = this.activeWidth()
+    const sys = this.bpSystem()
     for (const [el, st] of this.states) {
       const sibs = this.siblingsOf(el)
       const targets = st.record.target === 'all' ? sibs : [el]
       for (const css of st.applied) for (const e of sibs) removeOverride(e, css)
       st.applied = new Set()
+      // Per property, apply the change that wins the cascade at this width (the
+      // edit on this breakpoint OR inherited from a neighbour per min/max-width).
+      const byProp = new Map<string, ChangeEntry[]>()
       for (const c of st.record.changes) {
-        if (c.breakpoint !== scope.name) continue
-        for (const e of targets) applyOverride(e, c.property, c.live ?? c.after.computed)
-        st.applied.add(c.property)
+        const arr = byProp.get(c.property) ?? []
+        arr.push(c)
+        byProp.set(c.property, arr)
+      }
+      for (const [prop, changes] of byProp) {
+        const eff = effectiveBreakpoint(changes.map((c) => c.breakpoint), width, sys)
+        if (!eff) continue
+        const c = changes.find((x) => x.breakpoint === eff)!
+        for (const e of targets) applyOverride(e, prop, c.live ?? c.after.computed)
+        st.applied.add(prop)
       }
     }
     this.reposition()
@@ -665,6 +676,37 @@ class Uivisor {
     const sys = this.bpSystem()
     if (this.responsive) return activeBreakpoint(this.frameWidth, sys)
     return currentBreakpoint(sys)
+  }
+
+  /** The width the inspector is scoped to (virtual screen, else real window). */
+  private activeWidth(): number {
+    if (this.responsive) return this.frameWidth
+    return typeof window !== 'undefined' ? window.innerWidth : 0
+  }
+
+  /** The recorded change that wins the breakpoint cascade for `css` at the active
+   *  width — i.e. the value effective here, set on this breakpoint or inherited. */
+  private effectiveChange(css: string): ChangeEntry | null {
+    const st = this.st()
+    if (!st) return null
+    const changes = st.record.changes.filter((c) => c.property === css)
+    if (!changes.length) return null
+    const eff = effectiveBreakpoint(
+      changes.map((c) => c.breakpoint),
+      this.activeWidth(),
+      this.bpSystem(),
+    )
+    return eff ? changes.find((c) => c.breakpoint === eff) ?? null : null
+  }
+
+  /** If `css`'s effective value is INHERITED from another breakpoint, its name. */
+  private inheritedFrom(props: string[]): string | null {
+    const scope = this.activeScope()
+    for (const p of props) {
+      const e = this.effectiveChange(p)
+      if (e && e.breakpoint !== scope.name) return e.breakpoint
+    }
+    return null
   }
 
   private recordProps(cssList: string[]): void {
@@ -880,11 +922,22 @@ class Uivisor {
   }
 
   /** State class for an editable control's row: edited (green, at this breakpoint)
-   *  · file (white, authored in CSS) · auto (grey, browser-computed/default). */
+   *  · inherit (a value cascaded from another breakpoint) · file (white, authored
+   *  in CSS) · auto (grey, browser-computed/default). */
   private controlStateClass(props: string[]): string {
     if (this.isChanged(props)) return ' st-edited'
+    if (this.inheritedFrom(props)) return ' st-inherit'
     const inherit = props.some((p) => INHERITED_PROPS.has(p))
     return this.isAuthored(props, inherit) ? ' st-file' : ' st-auto'
+  }
+
+  /** A control's label, with an "inherited from {bp}" badge when the value cascaded. */
+  private ctlLabel(label: string, props: string[]): string {
+    const from = this.inheritedFrom(props)
+    const badge = from
+      ? ` <span class="uiv-inh" title="inherited from ${escapeAttr(from)} — not set at this breakpoint">⤣${escapeHtml(from)}</span>`
+      : ''
+    return `<span class="clabel">${label}${badge}</span>`
   }
 
   /** Is any of `props` authored in the project CSS? For inherited properties we
@@ -1061,9 +1114,13 @@ class Uivisor {
       })
       .join('')
     const detected = sys.name === 'detected' ? '' : ' (defaults)'
+    const cascade =
+      sys.dir === 'min'
+        ? `Mobile-first: an edit applies to this breakpoint and <b>wider</b>, until you change it on a bigger one.`
+        : `Desktop-first: an edit applies to this breakpoint and <b>narrower</b>.`
     const hint = this.responsive
-      ? `Virtual screen at <b>${this.frameWidth}px</b> (${frameBp}). Edits scoped to <b>${frameBp}:</b>. Drag the frame edge to fine-tune.`
-      : `Live — your window is <b>${liveW}px</b> = <b>${winBp}</b> range, edits scoped to <b>${winBp}:</b>. Click another size to shrink the screen to it.`
+      ? `Virtual screen at <b>${this.frameWidth}px</b> (${frameBp}). Edits scoped to <b>${frameBp}:</b>. ${cascade}`
+      : `Live — your window is <b>${liveW}px</b> = <b>${winBp}</b>. ${cascade} Click a size to shrink the screen to it.`
     return `<div class="uiv-sec"><div class="uiv-sectitle">Screen / breakpoint${detected}</div><div class="uiv-chips">${liveChip}${chips}</div><div class="uiv-bphint">${hint}</div></div>`
   }
 
@@ -1107,7 +1164,8 @@ class Uivisor {
   private controlsHtml(ctx: ElContext): string {
     const legend =
       `<div class="uiv-leg"><span class="uiv-lg">file</span>` +
-      `<span class="uiv-lg edit">edited</span><span class="uiv-lg auto">auto</span></div>`
+      `<span class="uiv-lg edit">edited</span><span class="uiv-lg inh">inherited</span>` +
+      `<span class="uiv-lg auto">auto</span></div>`
     const secs = SECTIONS.map((sec) => {
       const controls = sec.controls.filter((c) => this.relevant(c, ctx))
       if (!controls.length) return ''
@@ -1219,7 +1277,7 @@ class Uivisor {
       .map((u) => `<option value="${u}"${u === d.unit ? ' selected' : ''}>${UNIT_LABELS[u] ?? u}</option>`)
       .join('')
     return (
-      `<div class="uiv-ctl${this.controlStateClass([c.css])}"><span class="clabel">${c.label}</span><div class="cfield">` +
+      `<div class="uiv-ctl${this.controlStateClass([c.css])}">${this.ctlLabel(c.label, [c.css])}<div class="cfield">` +
       `<div class="uiv-num uiv-dim${changed ? ' changed' : ''}" data-css="${c.css}">` +
       `<span class="uiv-scrub" title="Drag to change">${c.icon}</span>` +
       `<input type="number" step="any" value="${escapeAttr(d.num)}" placeholder="${escapeAttr(d.placeholder)}">` +
@@ -1283,7 +1341,7 @@ class Uivisor {
       const open = this.expanded.has(c.key)
       let html =
         `<div class="uiv-ctl${this.controlStateClass(cssList)}">` +
-        `<span class="clabel">${c.label}</span>` +
+        this.ctlLabel(c.label, cssList) +
         `<div class="cfield">${this.numField(cssList.join(','), info.mixed ? '' : info.value, c.icon, changed, false, info.mixed ? 'Mixed' : '—')}</div>` +
         `<button class="uiv-expand${open ? ' on' : ''}" data-key="${c.key}" title="Edit each side individually">${open ? ICONS.collapse : ICONS.expand}</button>` +
         `</div>`
@@ -1311,7 +1369,7 @@ class Uivisor {
     if (c.kind === 'len') {
       const v = this.liveNum(c.css)
       return (
-        `<div class="uiv-ctl${this.controlStateClass([c.css])}"><span class="clabel">${c.label}</span>` +
+        `<div class="uiv-ctl${this.controlStateClass([c.css])}">${this.ctlLabel(c.label, [c.css])}` +
         `<div class="cfield">${this.numField(c.css, v == null ? '' : String(round2(v)), c.icon, this.isChanged([c.css]), false, '—')}</div>` +
         `<span></span></div>` +
         this.tokenRowHtml(c.css, 'Token')
@@ -1330,7 +1388,7 @@ class Uivisor {
         .map((o) => `<option value="${o}"${o === cur ? ' selected' : ''}>${o}</option>`)
         .join('')
       return (
-        `<div class="uiv-ctl${this.controlStateClass([c.css])}"><span class="clabel">${c.label}</span>` +
+        `<div class="uiv-ctl${this.controlStateClass([c.css])}">${this.ctlLabel(c.label, [c.css])}` +
         `<div class="cfield"><select class="uiv-sel${this.isChanged([c.css]) ? ' changed' : ''}" data-css="${c.css}">${opts}</select></div>` +
         `<span></span></div>`
       )
@@ -1339,7 +1397,7 @@ class Uivisor {
     // color
     const val = toHexInput(this.liveVal(c.css))
     return (
-      `<div class="uiv-ctl${this.controlStateClass([c.css])}"><span class="clabel">${c.label}</span>` +
+      `<div class="uiv-ctl${this.controlStateClass([c.css])}">${this.ctlLabel(c.label, [c.css])}` +
       `<div class="cfield"><input type="color" class="uiv-color${this.isChanged([c.css]) ? ' changed' : ''}" data-css="${c.css}" value="${val}"></div>` +
       `<span></span></div>` +
       this.tokenRowHtml(c.css, 'Token')

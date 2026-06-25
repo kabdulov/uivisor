@@ -76,6 +76,10 @@ export interface EditRecord {
 
 export interface BreakpointSystem {
   name: string
-  /** Ordered ascending list of named min-width breakpoints (excluding base). */
+  /** Cascade direction: 'min' = mobile-first (min-width, value applies to this
+   *  breakpoint and WIDER); 'max' = desktop-first (max-width, applies NARROWER). */
+  dir: 'min' | 'max'
+  /** Ordered ascending list of named breakpoints (excluding base). `minWidth` is
+   *  the threshold px — a min-width for dir:'min', a max-width for dir:'max'. */
   breakpoints: { name: string; minWidth: number }[]
 }
