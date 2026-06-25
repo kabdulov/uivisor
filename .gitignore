@@ -1,0 +1,12 @@
+node_modules
+dist
+.vite
+**/.vite
+.next
+**/.next
+*.log
+*.tgz
+.DS_Store
+**/.DS_Store
+demo/dist
+demo-next/dist

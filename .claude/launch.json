@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "demo", "run", "dev"],
+      "port": 5180
+    },
+    {
+      "name": "demo-next",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "demo-next", "run", "dev"],
+      "port": 5181
+    },
+    {
+      "name": "demo-next-turbo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "demo-next", "run", "dev:turbo"],
+      "port": 5182
+    }
+  ]
+}

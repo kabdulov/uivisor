@@ -1,0 +1,88 @@
+{
+  "name": "uivisor",
+  "version": "0.1.1",
+  "type": "module",
+  "description": "Dev-only visual UI tweaker that turns mouse edits into a precise, breakpoint-aware prompt for your AI coding agent — without touching your source.",
+  "license": "MIT",
+  "author": "Kazbek Kabdulov",
+  "homepage": "https://github.com/kabdulov/uivisor#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kabdulov/uivisor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kabdulov/uivisor/issues"
+  },
+  "keywords": ["vite-plugin", "next", "turbopack", "react", "devtools", "ai", "visual-editing", "tailwind"],
+  "exports": {
+    "./vite": {
+      "types": "./dist/vite/index.d.ts",
+      "import": "./dist/vite/index.js",
+      "default": "./dist/vite/index.js"
+    },
+    "./babel": {
+      "types": "./dist/babel/index.d.ts",
+      "import": "./dist/babel/index.js",
+      "default": "./dist/babel/index.js"
+    },
+    "./overlay": {
+      "types": "./dist/overlay/index.d.ts",
+      "import": "./dist/overlay/index.js",
+      "default": "./dist/overlay/index.js"
+    },
+    "./next": {
+      "types": "./dist/next/index.d.ts",
+      "import": "./dist/next/index.js",
+      "require": "./dist/next/index.cjs",
+      "default": "./dist/next/index.cjs"
+    },
+    "./next/overlay": {
+      "types": "./dist/next/overlay.d.ts",
+      "import": "./dist/next/overlay.js",
+      "default": "./dist/next/overlay.js"
+    },
+    "./next/loader": {
+      "require": "./dist/next/loader.cjs",
+      "default": "./dist/next/loader.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "workspaces": ["demo", "demo-next"],
+  "scripts": {
+    "build": "rm -rf dist && tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "demo": "npm run build && npm --workspace demo run dev",
+    "prepublishOnly": "npm run build && vitest run"
+  },
+  "peerDependencies": {
+    "vite": ">=4",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "vite": { "optional": true },
+    "react": { "optional": true }
+  },
+  "dependencies": {
+    "@babel/core": "^7.24.0"
+  },
+  "devDependencies": {
+    "@babel/types": "^7.24.0",
+    "@types/babel__core": "^7.20.5",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.3.0",
+    "jsdom": "^24.0.0",
+    "react": "^18.3.1",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
