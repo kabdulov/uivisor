@@ -2,12 +2,13 @@
 
 <img src="./uivisor.jpg" alt="uivisor" width="100%" />
 
-<h3>Point at any element in your running app, tweak it by hand, and copy a precise,<br/>breakpoint-aware prompt for your AI agent — without ever touching your code.</h3>
+<h3>Тыкни мышкой в любой элемент живого приложения, поправь его руками —<br/>и забери точный промпт для ИИ-агента с <code>file:line:col</code>. Твой код не трогается.</h3>
 
 <p>
-  <img alt="dev only" src="https://img.shields.io/badge/dev--only-never%20ships%20to%20prod-22c55e?style=flat-square" />
+  <img alt="dev only" src="https://img.shields.io/badge/только%20dev-в%20прод%20не%20попадает-22c55e?style=flat-square" />
   <img alt="stack" src="https://img.shields.io/badge/React%20·%20Next.js%20·%20Vite-4f46e5?style=flat-square" />
-  <img alt="prompt only" src="https://img.shields.io/badge/prompt--only-no%20code%20mutation-06b6d4?style=flat-square" />
+  <img alt="prompt only" src="https://img.shields.io/badge/только%20промпт-код%20не%20мутируется-06b6d4?style=flat-square" />
+  <img alt="npm" src="https://img.shields.io/npm/v/uivisor?style=flat-square&color=cb3837&label=npm" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-3f3f46?style=flat-square" />
 </p>
 
@@ -15,22 +16,20 @@
 
 ---
 
-## The problem
+## Знакомая боль
 
-You spot a small UI nit in your running app — this padding's too tight, that heading wants a heavier
-weight, those cards need more radius at `lg`. Two bad options:
+Заметил в работающем приложении мелочь: тут `padding` жмёт, заголовку нужен шрифт пожирнее, карточкам не хватает радиуса на `lg`. Два плохих варианта:
 
-1. **Dig into the code** yourself for a one-line change, or
-2. **Burn agent tokens** describing it in prose — *"on the pricing page, the middle card's button…"* — and hope the agent finds the right element.
+1. **Лезть в код руками** ради правки в одну строку, или
+2. **Жечь токены агента**, объясняя словами — *«на странице прайсинга, у средней карточки, та кнопка…»* — и надеяться, что он найдёт нужный элемент.
 
-**uivisor** is a third option. Turn it on, **click the element, nudge it with your mouse**, and it hands you a
-copy-paste instruction that pins the **exact file & line**, the **styling mechanism**, the **breakpoint**, and
-**what to change** — so your agent makes the edit in one shot. uivisor itself **never writes to your source**;
-your tweaks are throwaway inline overrides in the browser.
+**uivisor — это третий вариант.** Включаешь, **кликаешь элемент, крутишь его мышкой** — и получаешь готовую инструкцию: **точный файл и строка**, **механизм стилей**, **брейкпоинт** и **что именно поменять**. Агент правит с первого раза. Сам uivisor **в исходники не пишет** — твои правки живут одноразовыми inline-оверрайдами в браузере и исчезают на перезагрузке.
 
-## What you get
+Больше никакого *«страница 55, вон та штука»*.
 
-Click a button, bump its padding and color, hit **Copy prompt for agent**, and you get:
+## Что на выходе
+
+Кликнул кнопку, добавил `padding` и поменял цвет, нажал **Copy prompt for agent** — в буфере:
 
 ```md
 # uivisor — apply these UI tweaks (2 changes across 1 element)
@@ -45,27 +44,19 @@ Click a button, bump its padding and color, hit **Copy prompt for agent**, and y
 ### Rules
 - Edit the EXISTING className/styles. Do NOT add inline styles or duplicate the component.
 - Scope each change to its breakpoint with a responsive variant (e.g. `lg:`).
-- Confirm the element by its source location, text and data-testid before editing.
 ```
 
-Paste that into Claude Code / Cursor / whatever — done. No more *"page 55, that thing"*.
+Вставил в Claude Code / Cursor — готово. Промпт на английском нарочно: агенты понимают его одинаково чётко.
 
 ---
 
-## Quick start
-
-> uivisor runs **only in dev** (`apply: 'serve'` / gated to `next dev`). It is **physically absent from your
-> production build.**
-
-It isn't on npm yet, so for a real project link it locally (rebuild + restart picks up changes — no reinstall):
+## Установка
 
 ```bash
-# in the uivisor folder
-npm install && npm run build
-
-# in YOUR project
-npm i -D file:/absolute/path/to/uivisor
+npm i -D uivisor
 ```
+
+> uivisor работает **только в dev** и **физически отсутствует в проде** — он подключается через дев-плагин и в продакшн-сборку не попадает.
 
 ### Vite + React
 
@@ -76,13 +67,15 @@ import uivisor from 'uivisor/vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  plugins: [uivisor(), react()], //  ⚠️  uivisor() BEFORE react()
+  plugins: [uivisor(), react()], //  ⚠️  uivisor() ПЕРЕД react()
 })
 ```
 
+Запусти dev-сервер и жми **`Alt`+`U`** (или **◎** справа снизу).
+
 ### Next.js (App Router, Next 13–16)
 
-**1. Wrap your config.** Works with `next.config.ts` / `.mjs` (ESM) or `.js` (CJS):
+**1. Оберни конфиг.** Работает и с `next.config.ts` / `.mjs` (ESM), и с `.js` (CJS):
 
 ```ts
 // next.config.ts
@@ -92,13 +85,8 @@ const nextConfig = { reactStrictMode: true }
 
 export default withUivisor(nextConfig)
 ```
-```js
-// next.config.js (CommonJS)
-const { withUivisor } = require('uivisor/next')
-module.exports = withUivisor({ reactStrictMode: true })
-```
 
-**2. Mount the overlay** once in your root layout (works under both bundlers):
+**2. Смонтируй оверлей** один раз в корневом layout:
 
 ```tsx
 // app/layout.tsx
@@ -109,90 +97,82 @@ export default function RootLayout({ children }) {
 }
 ```
 
-**3. Run it.** Then press **`Alt`+`U`** (or click **◎**).
+**3. Запусти `next dev`** и жми **`Alt`+`U`**. Работает и под webpack, и под **Turbopack**:
 
-| Command | Overlay | Exact `file:line` |
+| Команда | Оверлей | Точный `file:line` |
 |---|---|---|
-| `next dev --webpack` | ✅ | ✅ (recommended) |
-| `next dev` (**Turbopack**, default in Next 15/16) | ✅ | ⚠️ off — falls back to component + selector + text |
+| `next dev` (**Turbopack**, по умолчанию в Next 15/16) | ✅ | ✅ |
+| `next dev --webpack` | ✅ | ✅ |
 
-> **Turbopack ignores `webpack()` config**, so `data-uiv-src` source attributes aren't injected under plain
-> `next dev`. uivisor detects this and prints a clear console hint. For exact `file:line`, either run
-> `next dev --webpack` (add a `"dev:uivisor": "next dev --webpack"` script), or opt into the **experimental**
-> Turbopack loader: `withUivisor(config, { turbopack: true })`. Everything is **dev-only** — nothing reaches
-> production builds.
-
-#### Keeping it updated while we iterate
-
-Linked with `file:` → after any change to uivisor, just `npm run build` in the uivisor folder and **restart your
-dev server**. No reinstall. (For Next, clear `.next/` if HMR doesn't pick it up.)
+> Под Turbopack source-locations подключаются автоматически через `turbopack.rules`. Если где-то мешает —
+> отключи: `withUivisor(config, { turbopack: false })` (оверлей продолжит работать, для `file:line` тогда
+> используй `next dev --webpack`). Всё это — **только dev**, в прод не уезжает.
 
 ---
 
-## Using the panel
+## Как пользоваться панелью
 
-1. **`Alt`+`U`** toggles uivisor · **Esc** deselects.
-2. **Click any element.** A Figma-like inspector fills with its spacing / border / typography / fill —
-   only the controls that are relevant (Typography shows on text elements, Gap on flex/grid containers).
-3. **Tweak:**
-   - **Combined-by-default** — Padding / Margin / Radius show one "all sides" input; click **▦** to split into
-     individual sides/corners.
-   - **Drag-to-scrub** — drag the icon on the left of any number field (cursor → ↔) to change it live.
-   - **Units** — line-height & letter-spacing have a px / % / em / × selector and always show the current number.
-4. **Screen / breakpoint** — click `md` / `lg` / … and the app loads in a **virtual screen at that width**
-   (real CSS media queries reflow); drag the frame edge to fine-tune. Only your project's **real breakpoints**
-   are shown. Edits are scoped to the chosen breakpoint (`lg:p-6`). `Live` = your real window.
-5. **Apply changes to** — pick the edit target:
-   - **All N like this** — when the element is a repeated sibling (same component/source, e.g. 3 cards), the
-     change previews on *all* of them and the prompt tells the agent to edit the shared component/source.
-   - **Only this one** · an existing **`.class`** · or **a new class you name** (agent creates it, leaves the rest).
-6. **Copy prompt for agent** (or **Copy JSON** for the machine-readable spec).
+1. **`Alt`+`U`** включает uivisor · **Esc** снимает выделение.
+2. **Кликни любой элемент.** Откроется инспектор в духе Figma с его spacing / border / typography / fill —
+   причём только релевантные контролы (Typography — на текстовых элементах, Gap — на flex/grid-контейнерах).
+3. **Правь:**
+   - **Текущие стили подтягиваются** — существующие значения горят белым, твои правки — зелёным. Не гадаешь.
+   - **Одно поле на все стороны** — Padding / Margin / Radius по умолчанию меняют все 4 сразу; кнопка **▦**
+     разворачивает на отдельные стороны/углы.
+   - **Тяни-меняй** — навёл на иконку слева от числа (курсор → ↔) и тянешь — значение меняется вживую.
+   - **Единицы** — у line-height и letter-spacing есть переключатель px / % / em / × и всегда видно число.
+4. **Screen / breakpoint** — кликаешь `md` / `lg` / … и приложение грузится в **виртуальный экран этой ширины**
+   (реальные медиа-запросы перестраиваются); тянешь край рамки для точной подгонки. Показываются **только
+   брейкпоинты твоего проекта**. Правки скоупятся под выбранный брейкпоинт (`lg:p-6`). `Live` = твоё реальное окно.
+5. **Apply changes to** — куда применить правку:
+   - **All N like this** — если элемент повторяется (тот же компонент/исходник, напр. 3 карточки), правка
+     превьюится на **всех**, а промпт просит агента поправить общий компонент/класс — без хрупкого `nth-of-type`.
+   - **Only this one** · существующий **`.class`** · или **новый класс с твоим именем** (агент создаст его, старые не тронет).
+6. **Copy prompt for agent** (или **Copy JSON** для машиночитаемого спека).
 
-Nothing is written to disk — tweaks live in the browser and vanish on reload.
-
----
-
-## For your AI agent
-
-uivisor's output is a **self-contained instruction**, designed to be acted on without extra context. When you
-receive a uivisor prompt:
-
-- **Go to the `file:line:col`** it names — that's the authoritative anchor (injected in dev, React-19 safe).
-- **Edit the existing styling mechanism** it identifies (`tailwind` / `css-modules` / `styled-components` /
-  `inline` / `plain-css`) — not inline styles, and don't duplicate the component.
-- **Respect the breakpoint scope** — emit the responsive variant (`lg:…`), don't make it global.
-- **Respect the target** — `All N like this` means edit the shared component/class so every instance updates;
-  `new class` means create it and leave existing classes untouched; a positional `nth-of-type` selector is a
-  last-resort locator, never the thing to hard-code against.
+На диск ничего не пишется — правки живут в браузере и исчезают на reload.
 
 ---
 
-## How it works
+## Твоему ИИ-агенту
 
-- **Source mapping** — a tiny dev-only Babel pass tags host JSX with `data-uiv-src="file:line:col"`
-  (Vite plugin runs it `enforce: 'pre'`; Next runs it as a webpack pre-loader, keeping SWC).
-- **Identity, layered** — file:line → component name (from the file) → `data-testid` / id / stable selector / text.
-- **Mechanism + tokens** — detects how the element is styled and reverse-maps px to Tailwind tokens
-  (`24px → p-6`, `leading-normal`, `tracking-tight`), with arbitrary-value fallback.
-- **Breakpoints** — detected from the `@media` rules in your CSS, so the bar shows *your* breakpoints.
-- **Responsive preview** — the app is loaded in a resizable iframe so real media queries reflow; the inspector
-  operates inside it.
+Промпт от uivisor — **самодостаточная инструкция**, её можно выполнять без лишнего контекста. Получив её:
 
-## Limitations
+- **Иди по `file:line:col`** — это главный якорь (инжектится в dev, безопасно для React 19).
+- **Правь существующий механизм стилей**, который он назвал (`tailwind` / `css-modules` / `styled-components` /
+  `inline` / `plain-css`) — не inline-стили, и не плоди дубликат компонента.
+- **Уважай брейкпоинт-скоуп** — отдавай responsive-вариант (`lg:…`), не делай правку глобальной.
+- **Уважай таргет** — `All N like this` значит править общий компонент/класс, чтобы обновились все инстансы;
+  `new class` — создать его и не трогать существующие; позиционный `nth-of-type` — крайний способ найти, а не то,
+  на что вешать правку.
 
-- **Dev builds only** — production strips source info and mangles classes.
-- **React-first** — the DOM/CSS/breakpoint core is framework-agnostic; only source mapping is React-specific today.
-- **Tailwind-tuned tokens** — non-Tailwind stacks get raw px + selector guidance (the prompt says which
-  CSS-module / styled rule to edit).
+---
 
-## Develop
+## Как это устроено
+
+- **Source mapping** — крошечный dev-only Babel/loader-проход вешает на host-JSX `data-uiv-src="file:line:col"`
+  (Vite — плагином `enforce: 'pre'`; Next — webpack pre-loader'ом и `turbopack.rules`, сохраняя SWC).
+- **Идентичность слоями** — file:line → имя компонента (из файла) → `data-testid` / id / стабильный селектор / текст.
+- **Механизм + токены** — определяет, чем стилизован элемент, и маппит px в Tailwind-токены
+  (`24px → p-6`, `leading-normal`, `tracking-tight`), с фолбэком на arbitrary-значения.
+- **Брейкпоинты** — детектятся из `@media`-правил твоего CSS, поэтому в баре — *твои* брейкпоинты.
+- **Responsive-превью** — приложение грузится в ресайзимый iframe, медиа-запросы перестраиваются по-настоящему,
+  а инспектор работает внутри.
+
+## Ограничения
+
+- **Только dev-сборки** — прод вырезает source-инфо и минифицирует классы.
+- **Сначала React** — ядро (DOM/CSS/брейкпоинты) фреймворк-агностично; пока только source mapping завязан на React.
+- **Заточено под Tailwind** — на не-Tailwind стеках промпт даёт сырые px + указание, какое CSS-module/styled-правило править.
+
+## Разработка
 
 ```bash
 npm install
 npm run build        # tsup → dist/{vite,babel,overlay,next}
-npm test             # vitest (pure logic + babel transform)
-npm run demo         # Vite + React playground on :5180
-# demo-next/         # Next.js (app router) playground on :5181
+npm test             # vitest (чистая логика + babel-трансформ)
+npm run demo         # Vite + React песочница на :5180
+# demo-next/         # Next.js (app router) песочница на :5181
 ```
 
-<div align="center"><sub>MIT · dev-only · prompt-only</sub></div>
+<div align="center"><sub>MIT · только dev · только промпт</sub></div>
