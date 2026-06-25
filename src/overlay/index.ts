@@ -20,6 +20,13 @@ import {
   type Control,
   type DimControl,
 } from './fields.js'
+import {
+  type DesignSystem,
+  type DesignToken,
+  type TokenCategory,
+  detectDesignSystem,
+  nearestToken,
+} from './designtokens.js'
 import { detectMechanism } from './mechanism.js'
 import { collapseChanges, renderPrompt, renderSpec } from './prompt.js'
 import { getIdentity } from './source.js'
@@ -66,11 +73,56 @@ class Uivisor {
   private _csEl: HTMLElement | null = null
   /** Cached project breakpoint system (detected from CSS), refreshed until found. */
   private _bp: BreakpointSystem | null = null
+  /** Cached project design system (detected from CSS variables), refreshed until found. */
+  private _ds: DesignSystem | null = null
+  /** Memoised Tailwind-utility probes: candidate class → resolved class or null. */
+  private utilCache = new Map<string, string | null>()
 
   /** Project breakpoints — re-detect until the stylesheets yield a real set. */
   private bpSystem(): BreakpointSystem {
     if (!this._bp || this._bp.name !== 'detected') this._bp = detectBreakpoints()
     return this._bp
+  }
+
+  /** Project design tokens — re-detect until the CSS variables resolve. */
+  private designSystem(): DesignSystem {
+    if (!this._ds || this._ds.source === 'none') this._ds = detectDesignSystem()
+    return this._ds
+  }
+
+  /** Which token category (if any) a CSS property picks tokens from. */
+  private dsCategoryFor(css: string): TokenCategory | null {
+    if (css === 'font-size') return 'font-size'
+    if (css === 'color' || css === 'background-color') return 'color'
+    return null
+  }
+
+  /** Does a Tailwind utility for this token actually exist in the project CSS?
+   *  Probe a hidden element in the page document and compare the resolved value. */
+  private dsUtility(css: string, token: DesignToken): string | null {
+    const prefix = css === 'background-color' ? 'bg' : 'text' // color & font-size → text
+    const cls = `${prefix}-${token.name}`
+    if (this.utilCache.has(cls)) return this.utilCache.get(cls) ?? null
+    let res: string | null = null
+    try {
+      const probe = document.createElement('span')
+      probe.className = cls
+      probe.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden'
+      document.body.appendChild(probe)
+      const got = getComputedStyle(probe).getPropertyValue(css).trim()
+      probe.remove()
+      if (token.category === 'color') {
+        const a = (rgbToHex(got) || got).toLowerCase()
+        const b = (rgbToHex(token.value) || token.value).toLowerCase()
+        if (a && a === b) res = cls
+      } else if (token.px != null && Math.abs(parseFloat(got) - token.px) < 0.5) {
+        res = cls
+      }
+    } catch {
+      /* noop */
+    }
+    this.utilCache.set(cls, res)
+    return res
   }
 
   private hoverBox!: HTMLElement
@@ -213,7 +265,10 @@ class Uivisor {
       const prev = this._bp
       this._bp = null
       const next = this.bpSystem()
-      if (!prev || key(prev) !== key(next)) this.renderBody()
+      const prevDsN = this._ds?.tokens.length ?? -1
+      this._ds = null
+      const nextDs = this.designSystem()
+      if (!prev || key(prev) !== key(next) || prevDsN !== nextDs.tokens.length) this.renderBody()
     }
     for (const d of [250, 900, 2200]) window.setTimeout(refresh, d)
   }
@@ -587,6 +642,25 @@ class Uivisor {
     this.renderBody()
   }
 
+  /** Apply a design-system token to a property: set its resolved value live and
+   *  annotate the recorded change so the prompt asks the agent for the token. */
+  private applyToken(css: string, token: DesignToken): void {
+    this.pushHistory()
+    this.liveSet([css], token.value)
+    this.recordProps([css]) // builds + records the change (renders once)
+    const st = this.st()
+    if (!st) return
+    const scope = this.activeScope()
+    const ch = st.record.changes.find((c) => c.property === css && c.breakpoint === scope.name)
+    if (ch) {
+      ch.after.designToken = token.cssVar
+      // Prefer a real Tailwind utility when the project exposes one; else var() form.
+      ch.after.token =
+        st.record.styling.primaryMechanism === 'tailwind' ? this.dsUtility(css, token) : null
+    }
+    this.renderBody()
+  }
+
   private revertProps(cssList: string[]): void {
     const el = this.selected
     const st = this.st()
@@ -682,6 +756,7 @@ class Uivisor {
         <div class="uiv-src">${escapeHtml(src)}</div>
         <span class="uiv-mech">${st.record.styling.primaryMechanism}</span>
       </div>
+      ${this.dsIndicatorHtml()}
       ${this.currentStylesHtml()}
       ${this.breakpointBarHtml()}
       ${this.targetHtml(st)}
@@ -689,6 +764,16 @@ class Uivisor {
       ${this.journalHtml()}
     `
     this.bindControls()
+  }
+
+  /** Small indicator: how many design tokens were detected (or a hint if none). */
+  private dsIndicatorHtml(): string {
+    const ds = this.designSystem()
+    if (ds.source === 'none') return ''
+    const cats = (Object.keys(ds.byCategory) as TokenCategory[])
+      .map((c) => `${ds.byCategory[c]!.length} ${c}`)
+      .join(' · ')
+    return `<div class="uiv-dsbar" title="${escapeAttr(cats)}">◆ Design system · ${ds.tokens.length} tokens detected</div>`
   }
 
   /** Read-only readout of the element's actual current styles — so you don't guess. */
@@ -952,6 +1037,34 @@ class Uivisor {
     )
   }
 
+  /** A design-token picker row for a property, shown only when the project exposes
+   *  tokens for that category. Picking a token applies its value + tags the prompt. */
+  private tokenRowHtml(css: string, label: string): string {
+    const cat = this.dsCategoryFor(css)
+    if (!cat) return ''
+    const ds = this.designSystem()
+    const list = ds.byCategory[cat]
+    if (!list || !list.length) return ''
+    const target =
+      cat === 'font-size' ? { px: this.currentPx(css) ?? undefined } : { value: this.computedVal(css) }
+    const near = nearestToken(ds, cat, target)
+    const edited = this.st()?.record.changes.some(
+      (c) => c.property === css && c.after.designToken,
+    )
+    const head = `<option value="">${near && !near.exact ? `≈ ${escapeHtml(near.token.name)} · pick token` : '— pick token —'}</option>`
+    const opts = list
+      .map(
+        (t) =>
+          `<option value="${escapeAttr(t.cssVar)}"${near?.exact && near.token.cssVar === t.cssVar ? ' selected' : ''}>${escapeHtml(`${t.name} · ${t.value}`)}</option>`,
+      )
+      .join('')
+    return (
+      `<div class="uiv-ctl"><span class="clabel uiv-tlabel">${label}</span>` +
+      `<div class="cfield"><select class="uiv-sel uiv-tokensel${edited ? ' changed' : ''}" data-css="${css}">${head}${opts}</select></div>` +
+      `<span></span></div>`
+    )
+  }
+
   private controlRow(c: Control): string {
     if (c.kind === 'box') {
       const cssList = c.sides.map((s) => s.css)
@@ -990,7 +1103,8 @@ class Uivisor {
       return (
         `<div class="uiv-ctl"><span class="clabel">${c.label}</span>` +
         `<div class="cfield">${this.numField(c.css, v == null ? '' : String(round2(v)), c.icon, this.isChanged([c.css]), false, '—')}</div>` +
-        `<span></span></div>`
+        `<span></span></div>` +
+        this.tokenRowHtml(c.css, 'Token')
       )
     }
 
@@ -1017,7 +1131,8 @@ class Uivisor {
     return (
       `<div class="uiv-ctl"><span class="clabel">${c.label}</span>` +
       `<div class="cfield"><input type="color" class="uiv-color${this.isChanged([c.css]) ? ' changed' : ''}" data-css="${c.css}" value="${val}"></div>` +
-      `<span></span></div>`
+      `<span></span></div>` +
+      this.tokenRowHtml(c.css, 'Token')
     )
   }
 
@@ -1061,12 +1176,21 @@ class Uivisor {
         this.commitValue([css], input.value)
       })
     })
-    root.querySelectorAll('.uiv-sel').forEach((node) => {
+    root.querySelectorAll('.uiv-sel:not(.uiv-tokensel)').forEach((node) => {
       const sel = node as HTMLSelectElement
       const css = sel.getAttribute('data-css')!
       sel.addEventListener('change', () => {
         this.pushHistory()
         this.commitValue([css], sel.value)
+      })
+    })
+    root.querySelectorAll('.uiv-tokensel').forEach((node) => {
+      const sel = node as HTMLSelectElement
+      const css = sel.getAttribute('data-css')!
+      sel.addEventListener('change', () => {
+        if (!sel.value) return
+        const token = this.designSystem().tokens.find((t) => t.cssVar === sel.value)
+        if (token) this.applyToken(css, token)
       })
     })
     root.querySelectorAll('.uiv-expand').forEach((node) => {

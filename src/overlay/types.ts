@@ -44,6 +44,8 @@ export interface ValueInfo {
   computed: string
   /** Best-effort utility/token suggestion, e.g. "pt-6" or "text-[#1f2937]". */
   token?: string | null
+  /** Project design-system custom property this value maps to, e.g. "--fs-headline-l". */
+  designToken?: string | null
 }
 
 export interface ChangeEntry {

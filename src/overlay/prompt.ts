@@ -69,6 +69,7 @@ export function renderPrompt(records: EditRecord[]): string {
 
   let anyClassTarget = false
   let anyNewClass = false
+  let anyDesignToken = false
   active.forEach((r, i) => {
     const id = r.identity
     const newClass = r.target?.startsWith('new:') ? r.target.slice(4) : null
@@ -139,9 +140,17 @@ export function renderPrompt(records: EditRecord[]): string {
           : `${bp} breakpoint (≥${byBp[bp][0].breakpointPx}px)`
       lines.push(`- At ${scope}:`)
       for (const c of byBp[bp]) {
-        const suggestion = c.after.token
-          ? `  → \`${variant(bp, c.after.token)}\``
-          : ''
+        let suggestion = ''
+        if (c.after.token) {
+          // A class/utility — breakpoint-prefixable (e.g. `lg:text-headline-l`).
+          suggestion = `  → \`${variant(bp, c.after.token)}\``
+        } else if (c.after.designToken) {
+          // A raw CSS variable — can't carry a `lg:` prefix; note the scope in words.
+          const at = bp === 'base' ? '' : ` (scope to ${bp})`
+          suggestion = `  → use design token \`${c.after.designToken}\` (\`var(${c.after.designToken})\`)${at}`
+        }
+        if (c.after.designToken || (c.after.token && /^(text|bg|border|rounded|shadow)-(?!\[)/.test(c.after.token)))
+          anyDesignToken = true
         lines.push(
           `    - ${c.property}: ${c.before.computed} → ${c.after.computed}${suggestion}`,
         )
@@ -169,6 +178,11 @@ export function renderPrompt(records: EditRecord[]): string {
   if (anyNewClass) {
     lines.push(
       '- When creating a new class, leave the current classes untouched and add the new class alongside them; pick the styling mechanism the project already uses.',
+    )
+  }
+  if (anyDesignToken) {
+    lines.push(
+      '- Prefer the project DESIGN TOKEN shown for each change (a Tailwind utility like `text-headline-l`, or the CSS variable `var(--…)`) over a hardcoded px/hex value — these come from the project’s own design system.',
     )
   }
 

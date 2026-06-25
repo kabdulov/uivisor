@@ -104,6 +104,19 @@ export const CSS = /* css */ `
 .uiv-newclass:focus { border-style: solid; border-color: #6366f1; color: #fff; }
 .uiv-newclass.on { border-style: solid; border-color: #22d3ee; color: #fff; }
 
+/* ---- design-system indicator + token pickers ---- */
+.uiv-dsbar { padding: 7px 12px; border-bottom: 1px solid #27272a;
+  font-size: 10px; font-weight: 600; letter-spacing: .3px; color: #a5b4fc;
+  background: #1e1b4b33; display: flex; align-items: center; gap: 6px; }
+.uiv-tlabel { color: #818cf8 !important; font-size: 10px; }
+.uiv-ctl select.uiv-tokensel {
+  width: 100%; background: #1e1b4b55; border: 1px solid #4338ca; color: #c7d2fe;
+  border-radius: 7px; padding: 6px 7px; font-size: 11px; outline: none;
+  font-family: ui-monospace, monospace; }
+.uiv-ctl select.uiv-tokensel:hover { border-color: #6366f1; color: #fff; }
+.uiv-ctl select.uiv-tokensel:focus { border-color: #818cf8; }
+.uiv-ctl select.uiv-tokensel.changed { border-color: #4ade80; color: #86efac; }
+
 /* ---- current-styles readout ---- */
 .uiv-readout { display: flex; flex-direction: column; gap: 3px; }
 .uiv-rrow { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center;
