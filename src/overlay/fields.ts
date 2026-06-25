@@ -85,6 +85,10 @@ export const ICONS = {
   width: sv('<path d="M1.5 8 H14.5 M4 5 L1.5 8 L4 11 M12 5 L14.5 8 L12 11"/>'),
   height: sv('<path d="M8 1.5 V14.5 M5 4 L8 1.5 L11 4 M5 12 L8 14.5 L11 12"/>'),
   chevron: sv('<path d="M6 4 L10 8 L6 12"/>'),
+  phone: sv('<rect x="5" y="1.8" width="6" height="12.4" rx="1.6"/><path d="M7 12.4h2"/>'),
+  tablet: sv('<rect x="3.3" y="2.2" width="9.4" height="11.6" rx="1.6"/><path d="M7 11.7h2"/>'),
+  desktop: sv('<rect x="1.8" y="2.8" width="12.4" height="8" rx="1"/><path d="M5.8 14h4.4 M8 10.8v3.2"/>'),
+  live: sv('<circle cx="8" cy="8" r="2"/><path d="M4.6 4.6a4.8 4.8 0 0 0 0 6.8 M11.4 4.6a4.8 4.8 0 0 1 0 6.8"/>'),
 }
 
 export const SECTIONS: Section[] = [

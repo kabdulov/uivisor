@@ -157,7 +157,7 @@ class Uivisor {
     this.root.innerHTML = `
       <style>${CSS}</style>
       <div class="uiv-framewrap">
-        <div class="uiv-framebar"><span class="uiv-framew">768px</span><span class="uiv-framex" title="Exit responsive">✕ exit</span></div>
+        <div class="uiv-framebar"><div class="uiv-framechips uiv-chips"></div><span class="uiv-framew">768px</span><span class="uiv-framex" title="Exit responsive">✕</span></div>
         <div class="uiv-framestage">
           <div class="uiv-framehost">
             <iframe class="uiv-frame" data-uiv-frame="1"></iframe>
@@ -824,6 +824,7 @@ class Uivisor {
         <div class="uiv-hint">Alt+U toggles · Esc deselects · ⌘/Ctrl+Z undo, ⇧ to redo. Tweaks stay in the browser — nothing is written to your code.</div>
         ${this.journalHtml()}
       `
+      if (this.responsive) this.renderFrameBar()
       this.bindControls()
       return
     }
@@ -851,6 +852,7 @@ class Uivisor {
       ${this.controlsHtml(this.context(this.selected))}
       ${this.journalHtml()}
     `
+    if (this.responsive) this.renderFrameBar()
     this.bindControls()
   }
 
@@ -1096,32 +1098,55 @@ class Uivisor {
     return `<div class="uiv-sec">${this.accordionTitle('Current styles')}<div class="uiv-readout">${items}</div></div>`
   }
 
-  /** Breakpoint scope switcher: shows the PROJECT's breakpoints + the live window one. */
-  private breakpointBarHtml(): string {
+  /** A device icon for a breakpoint chip, by its threshold (size proxy). */
+  private bpIcon(name: string): string {
+    if (name === 'live') return ICONS.live
+    const px = name === 'base' ? 0 : this.bpSystem().breakpoints.find((b) => b.name === name)?.minWidth ?? 0
+    if (px < 768) return ICONS.phone
+    if (px < 1024) return ICONS.tablet
+    return ICONS.desktop
+  }
+
+  /** Breakpoint chips (Live + each project breakpoint) with device icons. Reused by
+   *  the panel (Live mode) and the bar over the virtual screen (responsive mode). */
+  private breakpointChipsHtml(): string {
     const sys = this.bpSystem()
-    const bps = sys.breakpoints
-    const names = ['base', ...bps.map((b) => b.name)]
-    // Active breakpoint: the frame's in responsive mode, else the real window's range.
+    const names = ['base', ...sys.breakpoints.map((b) => b.name)]
     const frameBp = this.responsive ? activeBreakpoint(this.frameWidth, sys).name : null
     const winBp = currentBreakpoint(sys).name
-    const liveW = typeof window !== 'undefined' ? window.innerWidth : 0
-    const liveChip = `<button class="uiv-chip${!this.responsive ? ' on' : ''}" data-bp="live" title="Follow your real browser window">Live</button>`
+    const chip = (n: string, on: boolean, title: string) =>
+      `<button class="uiv-chip${on ? ' on' : ''}" data-bp="${n}" title="${escapeAttr(title)}">${this.bpIcon(n)}<span>${n === 'live' ? 'Live' : n}</span></button>`
+    const live = chip('live', !this.responsive, 'Follow your real browser window')
     const chips = names
       .map((n) => {
-        const active = this.responsive ? n === frameBp : n === winBp // Live → highlight the window's range
-        const px = n === 'base' ? 0 : bps.find((b) => b.name === n)!.minWidth
-        return `<button class="uiv-chip${active ? ' on' : ''}" data-bp="${n}" title="Preview at ≥${px}px">${n}</button>`
+        const active = this.responsive ? n === frameBp : n === winBp
+        const px = n === 'base' ? 0 : sys.breakpoints.find((b) => b.name === n)!.minWidth
+        return chip(n, active, sys.dir === 'min' ? `≥ ${px}px` : `≤ ${px}px`)
       })
       .join('')
+    return live + chips
+  }
+
+  /** Panel breakpoint bar — shown only in Live mode (in responsive mode the bar
+   *  lives over the virtual screen instead). */
+  private breakpointBarHtml(): string {
+    if (this.responsive) return ''
+    const sys = this.bpSystem()
+    const winBp = currentBreakpoint(sys).name
+    const liveW = typeof window !== 'undefined' ? window.innerWidth : 0
     const detected = sys.name === 'detected' ? '' : ' (defaults)'
     const cascade =
       sys.dir === 'min'
-        ? `Mobile-first: an edit applies to this breakpoint and <b>wider</b>, until you change it on a bigger one.`
+        ? `Mobile-first: an edit applies to this breakpoint and <b>wider</b>.`
         : `Desktop-first: an edit applies to this breakpoint and <b>narrower</b>.`
-    const hint = this.responsive
-      ? `Virtual screen at <b>${this.frameWidth}px</b> (${frameBp}). Edits scoped to <b>${frameBp}:</b>. ${cascade}`
-      : `Live — your window is <b>${liveW}px</b> = <b>${winBp}</b>. ${cascade} Click a size to shrink the screen to it.`
-    return `<div class="uiv-sec"><div class="uiv-sectitle">Screen / breakpoint${detected}</div><div class="uiv-chips">${liveChip}${chips}</div><div class="uiv-bphint">${hint}</div></div>`
+    const hint = `Live — window <b>${liveW}px</b> = <b>${winBp}</b>. ${cascade} Click a size to shrink the screen.`
+    return `<div class="uiv-sec"><div class="uiv-sectitle">Screen / breakpoint${detected}</div><div class="uiv-chips">${this.breakpointChipsHtml()}</div><div class="uiv-bphint">${hint}</div></div>`
+  }
+
+  /** Populate the bar over the virtual screen (responsive mode) with the chips. */
+  private renderFrameBar(): void {
+    const host = this.root.querySelector('.uiv-framechips')
+    if (host) host.innerHTML = this.breakpointChipsHtml()
   }
 
   /** "Apply changes to": this element, an existing shared class, or a NEW class. */

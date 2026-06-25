@@ -21,12 +21,14 @@ export const CSS = /* css */ `
 }
 .uiv-framewrap.show { display: flex; }
 .uiv-framebar {
-  display: flex; align-items: center; justify-content: center; gap: 14px;
-  height: 38px; color: #e4e4e7; font-size: 12px; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 12px;
+  height: 46px; padding: 0 14px; color: #e4e4e7; font-size: 12px; flex: 0 0 auto;
   border-bottom: 1px solid #27272a;
 }
-.uiv-framew { font-family: ui-monospace, monospace; color: #c7d2fe; font-weight: 600; }
-.uiv-framex { cursor: pointer; color: #a1a1aa; }
+.uiv-framechips { display: flex; gap: 6px; flex: 1; justify-content: center; flex-wrap: wrap; }
+.uiv-framew { font-family: ui-monospace, monospace; color: #c7d2fe; font-weight: 600;
+  white-space: nowrap; flex: 0 0 auto; }
+.uiv-framex { cursor: pointer; color: #a1a1aa; font-size: 14px; flex: 0 0 auto; }
 .uiv-framex:hover { color: #fff; }
 .uiv-framestage {
   flex: 1; display: flex; align-items: stretch; justify-content: center;
@@ -90,7 +92,10 @@ export const CSS = /* css */ `
   border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 600;
   font-family: ui-monospace, monospace;
 }
+.uiv-chip { display: inline-flex; align-items: center; gap: 4px; }
+.uiv-chip svg { width: 13px; height: 13px; opacity: .85; }
 .uiv-chip:hover, .uiv-clschip:hover { color: #fff; background: #3f3f46; }
+.uiv-chip.on svg { opacity: 1; }
 .uiv-chip.win { border-color: #52525b; color: #d4d4d8; }
 .uiv-chip.on, .uiv-clschip.on { background: #4f46e5; border-color: #6366f1; color: #fff; }
 .uiv-bphint { margin-top: 7px; font-size: 10px; color: #71717a; line-height: 1.4; }
