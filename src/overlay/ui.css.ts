@@ -130,8 +130,12 @@ export const CSS = /* css */ `
 .uiv-rk { color: #71717a; }
 .uiv-rv { color: #fff; word-break: break-all; display: flex; align-items: center; gap: 6px; }
 .uiv-rv.changed { color: #4ade80; } /* edited in uivisor → green */
-.uiv-rv.auto { color: #6b7280; } /* browser-computed / default → grey */
-.uiv-leg { display: flex; gap: 10px; padding: 1px 0 6px; font-size: 9px;
+
+/* control-row state: file (authored) · edited (this breakpoint) · auto (computed) */
+.uiv-ctl.st-file > .clabel { color: #e4e4e7; }
+.uiv-ctl.st-edited > .clabel { color: #4ade80; }
+.uiv-ctl.st-auto > .clabel { color: #6b7280; }
+.uiv-leg { display: flex; gap: 12px; padding: 8px 12px 2px; font-size: 9px;
   text-transform: uppercase; letter-spacing: .4px; }
 .uiv-lg { color: #e4e4e7; display: flex; align-items: center; gap: 4px; } /* file = white */
 .uiv-lg::before { content: ''; width: 7px; height: 7px; border-radius: 2px; background: currentColor; }

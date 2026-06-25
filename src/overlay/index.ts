@@ -55,6 +55,11 @@ interface HistorySnap {
 
 let counter = 0
 const round2 = (n: number) => Math.round(n * 100) / 100
+/** CSS properties that inherit — for these, a rule on an ancestor counts as "from
+ *  the file" (white), so the readout/controls don't mislabel inherited text styles. */
+const INHERITED_PROPS = new Set([
+  'font-size', 'font-weight', 'line-height', 'letter-spacing', 'color', 'text-align', 'font-family',
+])
 
 class Uivisor {
   private host!: HTMLDivElement
@@ -391,8 +396,9 @@ class Uivisor {
       const up = () => {
         handle.removeEventListener('pointermove', move)
         handle.removeEventListener('pointerup', up)
-        // The frame's breakpoint changed → refresh chips/hint. Existing edits keep
-        // their own breakpoint tags; only NEW edits scope to the current width.
+        // The frame's breakpoint changed → re-project edits onto it + refresh hint.
+        // Existing edits keep their own breakpoint tags; new edits scope to this width.
+        this.reapplyScope()
         this.renderBody()
       }
       handle.addEventListener('pointermove', move)
@@ -459,7 +465,10 @@ class Uivisor {
     const winBp = currentBreakpoint(this.bpSystem()).name
     if (winBp !== this.lastWinBp) {
       this.lastWinBp = winBp
-      if (this.enabled && this.selected) this.renderBody()
+      if (this.enabled && this.selected) {
+        this.reapplyScope() // window crossed a breakpoint → re-project edits
+        this.renderBody()
+      }
     }
   }
 
@@ -502,6 +511,8 @@ class Uivisor {
         dimUnit: {},
       })
     }
+    // Project this element's existing edits onto the active breakpoint.
+    if (el) this.reapplyScope()
     this.reposition()
     this.renderBody()
   }
@@ -531,9 +542,16 @@ class Uivisor {
     const el = this.selected
     const st = this.st()
     if (!el || !st) return ''
-    // User override wins; otherwise the element's *current* computed value so the
-    // controls track the active breakpoint (snapshot is only a last-resort fallback).
-    // A var() override (a design token) resolves to its computed value for display.
+    // A change recorded for the ACTIVE breakpoint wins — so padding edited to 20 at
+    // xl shows 20 at xl even if you later set 10 at md (each breakpoint keeps its own).
+    const scope = this.activeScope()
+    const ch = st.record.changes.find((c) => c.property === css && c.breakpoint === scope.name)
+    if (ch) {
+      const v = ch.live ?? ch.after.computed
+      return v.includes('var(') ? this.computedVal(css) || v : v
+    }
+    // Otherwise: the element's current computed value (tracks the breakpoint); the
+    // at-selection snapshot is only a last-resort fallback.
     const inline = el.style.getPropertyValue(css)
     if (inline && !inline.includes('var(')) return inline
     return this.computedVal(css) || st.original[css] || ''
@@ -559,7 +577,11 @@ class Uivisor {
   private isChanged(cssList: string[]): boolean {
     const st = this.st()
     if (!st) return false
-    return cssList.some((c) => st.record.changes.some((ch) => ch.property === c))
+    // Green only when edited AT THE ACTIVE breakpoint (per-breakpoint editing).
+    const scope = this.activeScope()
+    return cssList.some((c) =>
+      st.record.changes.some((ch) => ch.property === c && ch.breakpoint === scope.name),
+    )
   }
 
   private selectCurrent(css: string): string {
@@ -610,16 +632,28 @@ class Uivisor {
 
   /** Re-apply recorded overrides after the target (all ↔ one) changes. */
   private reapplyForTarget(): void {
-    const el = this.selected
-    const st = this.st()
-    if (!el || !st) return
-    const sibs = this.siblingsOf(el)
-    const targets = this.targetEls()
-    const props = new Set(st.record.changes.map((c) => c.property))
-    for (const css of props) {
-      for (const e of sibs) removeOverride(e, css)
-      const c = st.record.changes.find((ch) => ch.property === css)
-      if (c) for (const e of targets) applyOverride(e, css, c.live ?? c.after.computed)
+    this.reapplyScope()
+  }
+
+  /**
+   * Project the live preview for the ACTIVE breakpoint: strip every override we
+   * applied, then re-apply ONLY the changes recorded for the current scope. This
+   * is what makes per-breakpoint edits behave — set padding 20 at xl, 10 at md,
+   * and each breakpoint shows (and previews) its own value instead of one global
+   * inline override leaking across all of them.
+   */
+  private reapplyScope(): void {
+    const scope = this.activeScope()
+    for (const [el, st] of this.states) {
+      const sibs = this.siblingsOf(el)
+      const targets = st.record.target === 'all' ? sibs : [el]
+      for (const css of st.applied) for (const e of sibs) removeOverride(e, css)
+      st.applied = new Set()
+      for (const c of st.record.changes) {
+        if (c.breakpoint !== scope.name) continue
+        for (const e of targets) applyOverride(e, c.property, c.live ?? c.after.computed)
+        st.applied.add(c.property)
+      }
     }
     this.reposition()
   }
@@ -845,6 +879,14 @@ class Uivisor {
     return out
   }
 
+  /** State class for an editable control's row: edited (green, at this breakpoint)
+   *  · file (white, authored in CSS) · auto (grey, browser-computed/default). */
+  private controlStateClass(props: string[]): string {
+    if (this.isChanged(props)) return ' st-edited'
+    const inherit = props.some((p) => INHERITED_PROPS.has(p))
+    return this.isAuthored(props, inherit) ? ' st-file' : ' st-auto'
+  }
+
   /** Is any of `props` authored in the project CSS? For inherited properties we
    *  also walk ancestors (a body/parent font rule still counts as "from the file"). */
   private isAuthored(props: string[], inherit: boolean): boolean {
@@ -887,15 +929,11 @@ class Uivisor {
     const px4 = (pre: string, suf = '') => [`${pre}-top${suf}`, `${pre}-right${suf}`, `${pre}-bottom${suf}`, `${pre}-left${suf}`]
     const clip = (s: string, n = 30) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
-    const changedSet = new Set(this.st()?.record.changes.map((c) => c.property) ?? [])
-    const stateCls = (props: string[], inherit = false): string => {
-      if (props.some((p) => changedSet.has(p))) return ' changed' // edited → green
-      return this.isAuthored(props, inherit) ? '' : ' auto' // authored white · else grey
-    }
-
-    const rows: { k: string; v: string; cls: string }[] = []
-    const add = (k: string, v: string, props: string[], inherit = false) => {
-      if (v !== '' && v != null) rows.push({ k, v, cls: stateCls(props, inherit) })
+    // Read-only readout: just the real values (no colour coding here — the
+    // file/edited/auto colours live on the editable controls below).
+    const rows: { k: string; v: string }[] = []
+    const add = (k: string, v: string, _props: string[] = [], _inherit = false) => {
+      if (v !== '' && v != null) rows.push({ k, v })
     }
 
     const disp = g('display')
@@ -997,16 +1035,10 @@ class Uivisor {
     if (tr && tr !== 'none') add('transform', clip(tr, 22), ['transform'])
 
     const collapsed = this.collapsedSecs.has('Current styles')
-    const legend =
-      `<div class="uiv-leg"><span class="uiv-lg">file</span>` +
-      `<span class="uiv-lg edit">edited</span><span class="uiv-lg auto">auto</span></div>`
     const items = collapsed
       ? ''
-      : legend +
-        rows
-          .map(
-            (r) => `<div class="uiv-rrow"><span class="uiv-rk">${r.k}</span><span class="uiv-rv${r.cls}">${r.v}</span></div>`,
-          )
+      : rows
+          .map((r) => `<div class="uiv-rrow"><span class="uiv-rk">${r.k}</span><span class="uiv-rv">${r.v}</span></div>`)
           .join('')
     return `<div class="uiv-sec">${this.accordionTitle('Current styles')}<div class="uiv-readout">${items}</div></div>`
   }
@@ -1073,7 +1105,10 @@ class Uivisor {
   }
 
   private controlsHtml(ctx: ElContext): string {
-    return SECTIONS.map((sec) => {
+    const legend =
+      `<div class="uiv-leg"><span class="uiv-lg">file</span>` +
+      `<span class="uiv-lg edit">edited</span><span class="uiv-lg auto">auto</span></div>`
+    const secs = SECTIONS.map((sec) => {
       const controls = sec.controls.filter((c) => this.relevant(c, ctx))
       if (!controls.length) return ''
       const rows = this.collapsedSecs.has(sec.title)
@@ -1081,6 +1116,7 @@ class Uivisor {
         : controls.map((c) => this.controlRow(c)).join('')
       return `<div class="uiv-sec">${this.accordionTitle(sec.title)}${rows}</div>`
     }).join('')
+    return legend + secs
   }
 
   /** A collapsible section header. Clicking it hides/shows the section's controls. */
@@ -1183,7 +1219,7 @@ class Uivisor {
       .map((u) => `<option value="${u}"${u === d.unit ? ' selected' : ''}>${UNIT_LABELS[u] ?? u}</option>`)
       .join('')
     return (
-      `<div class="uiv-ctl"><span class="clabel">${c.label}</span><div class="cfield">` +
+      `<div class="uiv-ctl${this.controlStateClass([c.css])}"><span class="clabel">${c.label}</span><div class="cfield">` +
       `<div class="uiv-num uiv-dim${changed ? ' changed' : ''}" data-css="${c.css}">` +
       `<span class="uiv-scrub" title="Drag to change">${c.icon}</span>` +
       `<input type="number" step="any" value="${escapeAttr(d.num)}" placeholder="${escapeAttr(d.placeholder)}">` +
@@ -1246,7 +1282,7 @@ class Uivisor {
       const changed = this.isChanged(cssList)
       const open = this.expanded.has(c.key)
       let html =
-        `<div class="uiv-ctl">` +
+        `<div class="uiv-ctl${this.controlStateClass(cssList)}">` +
         `<span class="clabel">${c.label}</span>` +
         `<div class="cfield">${this.numField(cssList.join(','), info.mixed ? '' : info.value, c.icon, changed, false, info.mixed ? 'Mixed' : '—')}</div>` +
         `<button class="uiv-expand${open ? ' on' : ''}" data-key="${c.key}" title="Edit each side individually">${open ? ICONS.collapse : ICONS.expand}</button>` +
@@ -1275,7 +1311,7 @@ class Uivisor {
     if (c.kind === 'len') {
       const v = this.liveNum(c.css)
       return (
-        `<div class="uiv-ctl"><span class="clabel">${c.label}</span>` +
+        `<div class="uiv-ctl${this.controlStateClass([c.css])}"><span class="clabel">${c.label}</span>` +
         `<div class="cfield">${this.numField(c.css, v == null ? '' : String(round2(v)), c.icon, this.isChanged([c.css]), false, '—')}</div>` +
         `<span></span></div>` +
         this.tokenRowHtml(c.css, 'Token')
@@ -1294,7 +1330,7 @@ class Uivisor {
         .map((o) => `<option value="${o}"${o === cur ? ' selected' : ''}>${o}</option>`)
         .join('')
       return (
-        `<div class="uiv-ctl"><span class="clabel">${c.label}</span>` +
+        `<div class="uiv-ctl${this.controlStateClass([c.css])}"><span class="clabel">${c.label}</span>` +
         `<div class="cfield"><select class="uiv-sel${this.isChanged([c.css]) ? ' changed' : ''}" data-css="${c.css}">${opts}</select></div>` +
         `<span></span></div>`
       )
@@ -1303,7 +1339,7 @@ class Uivisor {
     // color
     const val = toHexInput(this.liveVal(c.css))
     return (
-      `<div class="uiv-ctl"><span class="clabel">${c.label}</span>` +
+      `<div class="uiv-ctl${this.controlStateClass([c.css])}"><span class="clabel">${c.label}</span>` +
       `<div class="cfield"><input type="color" class="uiv-color${this.isChanged([c.css]) ? ' changed' : ''}" data-css="${c.css}" value="${val}"></div>` +
       `<span></span></div>` +
       this.tokenRowHtml(c.css, 'Token')
@@ -1416,6 +1452,7 @@ class Uivisor {
           this.toggleResponsive(true) // applies frameWidth + renders
         } else {
           this.setFrameWidth(w)
+          this.reapplyScope() // project edits onto the newly active breakpoint
           this.renderBody()
         }
       })
@@ -1642,13 +1679,10 @@ class Uivisor {
     for (const ent of snap.entries) {
       const st: ElState = { record: clone(ent.record), original: { ...ent.original }, applied: new Set(), dimUnit: { ...ent.dimUnit } }
       this.states.set(ent.el, st)
-      const targets = st.record.target === 'all' ? this.siblingsOf(ent.el) : [ent.el]
-      for (const c of st.record.changes) {
-        for (const e of targets) applyOverride(e, c.property, c.live ?? c.after.computed)
-        st.applied.add(c.property)
-      }
     }
     this.selected = snap.selected && this.states.has(snap.selected) ? snap.selected : null
+    // Project live overrides for the active breakpoint only (per-breakpoint correct).
+    this.reapplyScope()
     this.reposition()
     this.renderBody()
   }
