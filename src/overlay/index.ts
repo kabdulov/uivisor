@@ -1737,7 +1737,57 @@ class Uivisor {
 
   // ---- actions ----
   private records(): EditRecord[] {
-    return [...this.states.values()].map((s) => s.record).filter((r) => r.changes.length > 0)
+    return [...this.states.entries()]
+      .filter(([, s]) => s.record.changes.length > 0)
+      .map(([el, s]) => ({ ...s.record, smells: this.detectSmells(el) }))
+  }
+
+  /**
+   * Detect dead / redundant / contradictory CSS on an element so the prompt can ask
+   * the agent to QUESTION it instead of blindly applying — e.g. flex-direction on a
+   * non-flex element, offsets without positioning, a display:none node that may be
+   * deletable. Only flags properties the project actually AUTHORED (matchedProps).
+   */
+  private detectSmells(el: HTMLElement): string[] {
+    const out: string[] = []
+    try {
+      const cs = getComputedStyle(el)
+      const authored = this.matchedProps(el)
+      const disp = cs.display
+      const flexGrid = /flex|grid/.test(disp)
+      const parent = el.parentElement
+      const parentFlexGrid = parent ? /flex|grid/.test(getComputedStyle(parent).display) : false
+      const has = (p: string) => authored.has(p)
+
+      if (disp === 'none')
+        out.push(
+          `It computes to \`display:none\` — it renders nothing here. If it isn't toggled visible elsewhere, prefer DELETING the element and its now-dead styles/classes over shipping a permanently hidden node.`,
+        )
+      if (cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0)
+        out.push(`It's invisible (visibility/opacity 0) — question whether it's needed at all.`)
+
+      if (!flexGrid)
+        for (const p of ['flex-direction', 'justify-content', 'align-items', 'flex-wrap'])
+          if (has(p))
+            out.push(`\`${p}\` is set but \`display\` is \`${disp}\` (not flex/grid) → it has NO effect. Remove it, or the display is wrong — ask which.`)
+
+      if (!parentFlexGrid)
+        for (const p of ['flex-grow', 'flex-shrink', 'flex-basis', 'align-self', 'order'])
+          if (has(p))
+            out.push(`\`${p}\` is set but the PARENT isn't flex/grid → no effect. Remove it or fix the parent.`)
+
+      if (cs.position === 'static')
+        for (const p of ['top', 'right', 'bottom', 'left', 'z-index'])
+          if (has(p))
+            out.push(`\`${p}\` is set but \`position\` is \`static\` → no effect. Add positioning or drop it.`)
+
+      if (disp === 'inline')
+        for (const p of ['width', 'height'])
+          if (has(p)) out.push(`\`${p}\` on an \`inline\` element has no effect (needs inline-block/block).`)
+    } catch {
+      /* noop */
+    }
+    return [...new Set(out)].slice(0, 6)
   }
 
   private async copyPrompt(): Promise<void> {

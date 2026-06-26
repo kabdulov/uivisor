@@ -63,8 +63,27 @@ export function renderPrompt(records: EditRecord[]): string {
   )
   lines.push('')
   lines.push(
-    'These are visual tweaks I made in the running app. Apply them to the source. Do not change anything else.',
+    'These are visual tweaks I made in the running app. Apply them to the source — but do NOT just mechanically apply them. First analyze the markup: if a change exposes dead, redundant, or contradictory code, stop and tell me (or propose the cleanup) instead of blindly applying.',
   )
+  lines.push('')
+  lines.push('## Analyze the markup first (don’t just change values)')
+  lines.push(
+    '- If a change effectively HIDES or empties an element (display:none, visibility:hidden, opacity:0, or collapsing its size to 0) and it isn’t shown conditionally somewhere else, question whether the element/component is needed at all. Prefer DELETING the element and its now-unused styles/classes over leaving a permanently hidden node.',
+  )
+  lines.push(
+    '- Flag CSS that has no effect in its context and ask why it’s there — don’t silently keep it:',
+  )
+  lines.push(
+    '    • flex-direction / justify-content / align-items / flex-wrap / gap on an element whose display is NOT flex/grid (e.g. block);',
+  )
+  lines.push('    • flex-grow / flex-shrink / flex-basis / align-self / order when the PARENT isn’t flex/grid;')
+  lines.push('    • top / right / bottom / left / z-index when position is static;')
+  lines.push('    • width / height on an inline element; a value identical to the inherited/default (a no-op).',
+  )
+  lines.push(
+    '- If a tweak only makes sense because of an underlying layout problem, fix the cause, don’t patch the symptom. Remove dead code rather than piling on more utilities/overrides.',
+  )
+  lines.push('- Per-element notes flagged below (⚠) are concrete instances I already detected — address them.')
   lines.push('')
 
   let anyClassTarget = false
@@ -155,6 +174,10 @@ export function renderPrompt(records: EditRecord[]): string {
           `    - ${c.property}: ${c.before.computed} → ${c.after.computed}${suggestion}`,
         )
       }
+    }
+    if (r.smells?.length) {
+      lines.push(`- ⚠ Analyze this element (don’t just apply — these look off):`)
+      for (const s of r.smells) lines.push(`    - ${s}`)
     }
     lines.push('')
   })

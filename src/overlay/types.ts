@@ -72,6 +72,9 @@ export interface EditRecord {
   changes: ChangeEntry[]
   /** Edit target: 'element' (this node) or a class name (apply to all .class). */
   target: string
+  /** Markup/CSS smells detected on this element (dead/redundant/contradictory code)
+   *  for the agent to question instead of blindly applying. Filled at copy time. */
+  smells?: string[]
 }
 
 export interface BreakpointSystem {
