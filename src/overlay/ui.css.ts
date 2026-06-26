@@ -262,6 +262,26 @@ export const CSS = /* css */ `
 .uiv-info-h { font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
   color: #8b8b94; font-weight: 600; margin-bottom: 6px; }
 .uiv-info-sub { color: #52525b; }
+/* ---- box-model widget (nested margin / padding, Figma/Framer style) ---- */
+.uiv-bm { position: relative; height: 118px; margin: 2px 0 9px;
+  background: #202024; border: 1px solid #2f2f35; border-radius: 9px; }
+.uiv-bm-pad { position: absolute; inset: 23px 30px; background: #2a2a30;
+  border: 1px solid #3a3a42; border-radius: 7px; }
+.uiv-bm-content { position: absolute; inset: 19px 26px; background: #3c3c45; border-radius: 4px; }
+.uiv-bm-tag { position: absolute; top: 2px; left: 6px; font-size: 7.5px; font-weight: 700;
+  letter-spacing: .5px; color: #6b6b73; pointer-events: none; }
+.uiv-bm-i { position: absolute; width: 34px; height: 15px; padding: 0; background: transparent;
+  border: 0; color: #d4d4d8; text-align: center; font-size: 10px; outline: none;
+  font-family: ui-monospace, monospace; -moz-appearance: textfield; }
+.uiv-bm-i:hover, .uiv-bm-i:focus { background: rgba(255,255,255,0.09); border-radius: 4px; }
+.uiv-bm-i.bm-top { top: 3px; left: 50%; transform: translateX(-50%); }
+.uiv-bm-i.bm-bottom { bottom: 3px; left: 50%; transform: translateX(-50%); }
+.uiv-bm-i.bm-left { left: 1px; top: 50%; transform: translateY(-50%); }
+.uiv-bm-i.bm-right { right: 1px; top: 50%; transform: translateY(-50%); }
+.uiv-bm-i.st-edited { color: #4ade80; }
+.uiv-bm-i.st-inherit { color: #38bdf8; }
+.uiv-bm-i.st-auto { color: #6b7280; }
+
 /* ---- All CSS inspector (search + categories + generic smart inputs) ---- */
 .uiv-csssearch { width: 100%; background: #0f0f12; border: 1px solid #3f3f46; color: #e4e4e7;
   border-radius: 7px; padding: 7px 9px; font-size: 12px; outline: none; font-family: ui-monospace, monospace; }

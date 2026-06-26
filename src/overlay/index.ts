@@ -657,8 +657,12 @@ class Uivisor {
 
   private selectCurrent(css: string): string {
     let v = this.liveVal(css).trim()
-    if (v === 'normal') v = '400'
-    if (v === 'bold') v = '700'
+    // normal/bold map to weights ONLY for font-weight — not justify-content,
+    // align-items, etc. whose initial value is literally "normal".
+    if (css === 'font-weight') {
+      if (v === 'normal') v = '400'
+      if (v === 'bold') v = '700'
+    }
     return v
   }
 
@@ -1279,6 +1283,31 @@ class Uivisor {
     return true
   }
 
+  /** Figma/Framer-style nested box-model widget: MARGIN ring around a PADDING ring,
+   *  with an editable number on each of the 8 sides. Commits via the engine. */
+  private boxModelHtml(): string {
+    const num = (css: string) => {
+      const n = this.liveNum(css)
+      return n == null ? '0' : String(round2(n))
+    }
+    const side = (css: string, pos: string) =>
+      `<input class="uiv-bm-i ${pos}${this.controlStateClass([css])}" data-css="${css}" value="${escapeAttr(num(css))}" title="${css}" spellcheck="false">`
+    return (
+      `<div class="uiv-bm">` +
+      `<span class="uiv-bm-tag">MARGIN</span>` +
+      side('margin-top', 'bm-top') +
+      side('margin-right', 'bm-right') +
+      side('margin-bottom', 'bm-bottom') +
+      side('margin-left', 'bm-left') +
+      `<div class="uiv-bm-pad"><span class="uiv-bm-tag">PADDING</span>` +
+      side('padding-top', 'bm-top') +
+      side('padding-right', 'bm-right') +
+      side('padding-bottom', 'bm-bottom') +
+      side('padding-left', 'bm-left') +
+      `<div class="uiv-bm-content"></div></div></div>`
+    )
+  }
+
   private controlsHtml(ctx: ElContext): string {
     const legend =
       `<div class="uiv-leg"><span class="uiv-lg">file</span>` +
@@ -1288,9 +1317,14 @@ class Uivisor {
       const controls = sec.controls.filter((c) => this.relevant(c, ctx))
       if (!controls.length) return ''
       if (this.collapsedSecs.has(sec.title)) return `<div class="uiv-sec">${this.accordionTitle(sec.title)}</div>`
+      // Spacing uses the nested box-model widget for padding+margin (the other
+      // controls, e.g. gap, still render as rows below it).
+      const isSpacing = sec.title === 'Spacing'
+      const widget = isSpacing ? this.boxModelHtml() : ''
       const rows: string[] = []
       const adds: string[] = []
       for (const c of controls) {
+        if (isSpacing && c.kind === 'box' && (c.key === 'padding' || c.key === 'margin')) continue
         const css = (c as { css?: string }).css
         // hideWhenAuto: an unset/auto-computed control is offered as "+" instead of
         // showing a misleading browser-computed value.
@@ -1307,7 +1341,7 @@ class Uivisor {
         }
       }
       const addRow = adds.length ? `<div class="uiv-adds">${adds.join('')}</div>` : ''
-      return `<div class="uiv-sec">${this.accordionTitle(sec.title)}${rows.join('')}${addRow}</div>`
+      return `<div class="uiv-sec">${this.accordionTitle(sec.title)}${widget}${rows.join('')}${addRow}</div>`
     }).join('')
     return legend + secs
   }
@@ -1798,6 +1832,17 @@ class Uivisor {
   private bindControls(): void {
     const root = this.root
     this.bindGeneric()
+    root.querySelectorAll('.uiv-bm-i').forEach((node) => {
+      const inp = node as HTMLInputElement
+      const css = inp.getAttribute('data-css')!
+      inp.addEventListener('change', () => {
+        this.pushHistory()
+        this.commitNumeric([css], inp.value)
+      })
+      inp.addEventListener('keydown', (e) => {
+        if ((e as KeyboardEvent).key === 'Enter') inp.blur()
+      })
+    })
     root.querySelectorAll('.uiv-num:not(.uiv-dim)').forEach((node) => {
       const box = node as HTMLElement
       const cssList = (box.getAttribute('data-css') || '').split(',').filter(Boolean)
