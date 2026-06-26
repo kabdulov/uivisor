@@ -1295,10 +1295,11 @@ class Uivisor {
     }
     const side = (css: string, pos: string) =>
       `<input class="uiv-bm-i ${pos}${this.controlStateClass([css])}" data-css="${css}" value="${escapeAttr(num(css))}" title="${css}" inputmode="decimal" spellcheck="false">`
-    // Spacing design tokens (if the project exposes any) → a per-side token picker.
+    // Spacing design tokens (if the project exposes any) → a per-side token picker,
+    // behind a discreet grip handle in the corner (not a banner at the top).
     const spaceTokens = this.designSystem().byCategory['spacing'] ?? []
     const tokBtn = spaceTokens.length
-      ? `<button class="uiv-bm-tok${this.bmTokenOpen ? ' on' : ''}" title="Apply a spacing token to the focused field">◆ token</button>`
+      ? `<button class="uiv-bm-tok${this.bmTokenOpen ? ' on' : ''}" title="Spacing tokens for the focused field">${ICONS.grip}</button>`
       : ''
     const chips =
       this.bmTokenOpen && spaceTokens.length

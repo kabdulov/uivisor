@@ -262,35 +262,38 @@ export const CSS = /* css */ `
 .uiv-info-h { font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
   color: #8b8b94; font-weight: 600; margin-bottom: 6px; }
 .uiv-info-sub { color: #52525b; }
-/* ---- box-model widget (nested margin / padding, Figma/Framer style) ---- */
-.uiv-bm { position: relative; height: 118px; margin: 2px 0 9px;
-  background: #202024; border: 1px solid #2f2f35; border-radius: 9px; }
-.uiv-bm-pad { position: absolute; inset: 23px 30px; background: #2a2a30;
-  border: 1px solid #3a3a42; border-radius: 7px; }
-.uiv-bm-content { position: absolute; inset: 19px 26px; background: #3c3c45; border-radius: 4px; }
-.uiv-bm-tag { position: absolute; top: 2px; left: 6px; font-size: 7.5px; font-weight: 700;
+/* ---- box-model widget (nested margin / padding, Figma/Framer style) ----
+   Bands are sized so the side inputs NEVER overlap the inner content box:
+   vertical band 26px (> input 18px), horizontal band 46px (> input 36px). */
+.uiv-bm { position: relative; height: 148px; margin: 2px 0 9px;
+  background: #1b1b1f; border: 1px solid #2f2f35; border-radius: 9px; }
+.uiv-bm-pad { position: absolute; top: 26px; bottom: 26px; left: 46px; right: 46px;
+  background: #26262c; border: 1px solid #3a3a42; border-radius: 7px; }
+.uiv-bm-content { position: absolute; z-index: 0; top: 26px; bottom: 26px; left: 46px; right: 46px;
+  background: #34343c; border-radius: 5px; }
+.uiv-bm-tag { position: absolute; z-index: 1; top: 4px; left: 8px; font-size: 7.5px; font-weight: 700;
   letter-spacing: .5px; color: #6b6b73; pointer-events: none; }
-.uiv-bm-i { position: absolute; width: 40px; height: 19px; padding: 0; box-sizing: border-box;
+.uiv-bm-i { position: absolute; z-index: 3; width: 36px; height: 18px; padding: 0; box-sizing: border-box;
   background: #0e0e11; border: 1px solid #34343c; border-radius: 5px;
-  color: #d4d4d8; text-align: center; text-align-last: center; line-height: 17px; font-size: 10px;
+  color: #d4d4d8; text-align: center; text-align-last: center; line-height: 16px; font-size: 10px;
   outline: none; cursor: ew-resize; font-family: ui-monospace, monospace; -moz-appearance: textfield; }
 .uiv-bm-i::-webkit-outer-spin-button, .uiv-bm-i::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.uiv-bm-i:hover { background: rgba(255,255,255,0.10); }
-.uiv-bm-i:focus { cursor: text; background: #18181b; border-color: #6366f1; }
-.uiv-bm-i.bm-top { top: 3px; left: 50%; transform: translateX(-50%); }
-.uiv-bm-i.bm-bottom { bottom: 3px; left: 50%; transform: translateX(-50%); }
-.uiv-bm-i.bm-left { left: 3px; top: 50%; transform: translateY(-50%); }
-.uiv-bm-i.bm-right { right: 3px; top: 50%; transform: translateY(-50%); }
+.uiv-bm-i:hover { border-color: #52525b; }
+.uiv-bm-i:focus { cursor: text; border-color: #6366f1; }
+.uiv-bm-i.bm-top { top: 4px; left: 50%; transform: translateX(-50%); }
+.uiv-bm-i.bm-bottom { bottom: 4px; left: 50%; transform: translateX(-50%); }
+.uiv-bm-i.bm-left { left: 5px; top: 50%; transform: translateY(-50%); }
+.uiv-bm-i.bm-right { right: 5px; top: 50%; transform: translateY(-50%); }
 .uiv-bm-i.st-file { color: #e4e4e7; }
 .uiv-bm-i.st-edited { color: #4ade80; }
 .uiv-bm-i.st-inherit { color: #38bdf8; }
 .uiv-bm-i.st-auto { color: #6b7280; }
-/* spacing-token affordance + chips */
-.uiv-bm-tok { position: absolute; top: 2px; right: 5px; z-index: 2; background: #1e1b4b66;
-  border: 1px solid #4338ca; color: #c7d2fe; border-radius: 5px; font-size: 9px; font-weight: 600;
-  padding: 1px 5px; cursor: pointer; }
-.uiv-bm-tok:hover { background: #312e81; color: #fff; }
-.uiv-bm-tok.on { background: #4f46e5; color: #fff; }
+/* spacing-token affordance (grip handle, top-right) + chips */
+.uiv-bm-tok { position: absolute; z-index: 4; top: 4px; right: 5px; display: flex;
+  align-items: center; justify-content: center; width: 18px; height: 16px; padding: 0;
+  background: transparent; border: 0; color: #6b6b73; cursor: pointer; border-radius: 4px; }
+.uiv-bm-tok:hover { color: #c7d2fe; background: rgba(255,255,255,0.06); }
+.uiv-bm-tok.on { color: #a5b4fc; background: #312e81; }
 .uiv-bm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: -4px 0 8px; }
 .uiv-bm-chip { background: #1e1b4b55; border: 1px solid #4338ca; color: #c7d2fe; border-radius: 6px;
   padding: 3px 7px; font-size: 10px; cursor: pointer; font-family: ui-monospace, monospace; }
