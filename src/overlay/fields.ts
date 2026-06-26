@@ -24,6 +24,9 @@ export interface LenControl {
   label: string
   icon: string
   requires?: Requirement
+  /** Hide the control when the value is browser-computed/auto (not authored or
+   *  edited) — shown behind a "+" so an auto width/height doesn't look like it's set. */
+  hideWhenAuto?: boolean
 }
 
 /** A dimension control: number + unit selector (px / % / em / unitless). */
@@ -135,10 +138,10 @@ export const SECTIONS: Section[] = [
   {
     title: 'Size',
     controls: [
-      { kind: 'len', css: 'width', label: 'Width', icon: ICONS.width },
-      { kind: 'len', css: 'height', label: 'Height', icon: ICONS.height },
-      { kind: 'len', css: 'max-width', label: 'Max W', icon: ICONS.width },
-      { kind: 'len', css: 'min-height', label: 'Min H', icon: ICONS.height },
+      { kind: 'len', css: 'width', label: 'Width', icon: ICONS.width, hideWhenAuto: true },
+      { kind: 'len', css: 'height', label: 'Height', icon: ICONS.height, hideWhenAuto: true },
+      { kind: 'len', css: 'max-width', label: 'Max W', icon: ICONS.width, hideWhenAuto: true },
+      { kind: 'len', css: 'min-height', label: 'Min H', icon: ICONS.height, hideWhenAuto: true },
     ],
   },
   {

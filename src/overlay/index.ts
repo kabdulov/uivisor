@@ -71,6 +71,8 @@ class Uivisor {
   private expanded = new Set<string>()
   /** Section titles collapsed in the accordion (per session). */
   private collapsedSecs = new Set<string>()
+  /** Controls manually revealed via "+" (hideWhenAuto controls that are auto). */
+  private revealedCtls = new Set<string>()
   /** Undo / redo stacks of full edit-state snapshots. */
   private undoStack: HistorySnap[] = []
   private redoStack: HistorySnap[] = []
@@ -169,6 +171,7 @@ class Uivisor {
       <div class="uiv-box sel"></div>
       <div class="uiv-tag"></div>
       <div class="uiv-fab" title="Toggle uivisor (Alt+U)">◎</div>
+      <div class="uiv-info"></div>
       <div class="uiv-toast"></div>
       <div class="uiv-panel">
         <div class="uiv-head">
@@ -258,6 +261,7 @@ class Uivisor {
     if (!this.enabled) {
       this.hoverBox.style.display = 'none'
       this.tag.style.display = 'none'
+      this.renderInfo() // hide the floating styles block
       if (this.responsive) this.toggleResponsive(false)
     } else {
       this.scheduleBpRefresh()
@@ -825,6 +829,7 @@ class Uivisor {
         ${this.journalHtml()}
       `
       if (this.responsive) this.renderFrameBar()
+      this.renderInfo()
       this.bindControls()
       return
     }
@@ -846,13 +851,13 @@ class Uivisor {
         <span class="uiv-mech">${st.record.styling.primaryMechanism}</span>
       </div>
       ${this.dsIndicatorHtml()}
-      ${this.currentStylesHtml()}
       ${this.breakpointBarHtml()}
       ${this.targetHtml(st)}
       ${this.controlsHtml(this.context(this.selected))}
       ${this.journalHtml()}
     `
     if (this.responsive) this.renderFrameBar()
+    this.renderInfo()
     this.bindControls()
   }
 
@@ -923,14 +928,18 @@ class Uivisor {
     return out
   }
 
-  /** State class for an editable control's row: edited (green, at this breakpoint)
-   *  · inherit (a value cascaded from another breakpoint) · file (white, authored
-   *  in CSS) · auto (grey, browser-computed/default). */
-  private controlStateClass(props: string[]): string {
-    if (this.isChanged(props)) return ' st-edited'
-    if (this.inheritedFrom(props)) return ' st-inherit'
+  /** Editing state of a property set: edited (set at this breakpoint) · inherit
+   *  (cascaded from another breakpoint) · file (authored in CSS) · auto
+   *  (browser-computed / default, not set anywhere). */
+  private controlState(props: string[]): 'edited' | 'inherit' | 'file' | 'auto' {
+    if (this.isChanged(props)) return 'edited'
+    if (this.inheritedFrom(props)) return 'inherit'
     const inherit = props.some((p) => INHERITED_PROPS.has(p))
-    return this.isAuthored(props, inherit) ? ' st-file' : ' st-auto'
+    return this.isAuthored(props, inherit) ? 'file' : 'auto'
+  }
+
+  private controlStateClass(props: string[]): string {
+    return ` st-${this.controlState(props)}`
   }
 
   /** A control's label, with an "inherited from {bp}" badge when the value cascaded. */
@@ -955,12 +964,11 @@ class Uivisor {
   }
 
   /**
-   * Read-only readout of the element's ACTUAL current styles, three-state coloured:
-   *   white = authored in the project CSS · green = edited in uivisor ·
-   *   grey  = browser-computed/auto (e.g. a width a flex item derived, a default).
-   * Comprehensive + context-aware (flex/grid/position rows only when relevant).
+   * Comprehensive read-only readout of the element's ACTUAL current styles
+   * (context-aware: flex/grid/position rows only when relevant). Rendered into the
+   * floating info block at the corner, not the panel. Returns the `<div.uiv-rrow>` rows.
    */
-  private currentStylesHtml(): string {
+  private styleRows(): string {
     const el = this.selected
     if (!el) return ''
     let cs: CSSStyleDeclaration
@@ -1089,13 +1097,24 @@ class Uivisor {
     const tr = g('transform')
     if (tr && tr !== 'none') add('transform', clip(tr, 22), ['transform'])
 
-    const collapsed = this.collapsedSecs.has('Current styles')
-    const items = collapsed
-      ? ''
-      : rows
-          .map((r) => `<div class="uiv-rrow"><span class="uiv-rk">${r.k}</span><span class="uiv-rv">${r.v}</span></div>`)
-          .join('')
-    return `<div class="uiv-sec">${this.accordionTitle('Current styles')}<div class="uiv-readout">${items}</div></div>`
+    return rows
+      .map((r) => `<div class="uiv-rrow"><span class="uiv-rk">${r.k}</span><span class="uiv-rv">${r.v}</span></div>`)
+      .join('')
+  }
+
+  /** Floating read-only "all styles" block, docked at the bottom-right corner so it
+   *  doesn't take space in the panel. Shown only while an element is selected. */
+  private renderInfo(): void {
+    const info = this.q('.uiv-info')
+    if (!this.enabled || !this.selected) {
+      info.classList.remove('show')
+      info.innerHTML = ''
+      return
+    }
+    info.innerHTML =
+      `<div class="uiv-info-h">all styles <span class="uiv-info-sub">computed</span></div>` +
+      `<div class="uiv-readout">${this.styleRows()}</div>`
+    info.classList.add('show')
   }
 
   /** Display label for a breakpoint name — the unprefixed "base" scope reads "all"
@@ -1198,10 +1217,27 @@ class Uivisor {
     const secs = SECTIONS.map((sec) => {
       const controls = sec.controls.filter((c) => this.relevant(c, ctx))
       if (!controls.length) return ''
-      const rows = this.collapsedSecs.has(sec.title)
-        ? ''
-        : controls.map((c) => this.controlRow(c)).join('')
-      return `<div class="uiv-sec">${this.accordionTitle(sec.title)}${rows}</div>`
+      if (this.collapsedSecs.has(sec.title)) return `<div class="uiv-sec">${this.accordionTitle(sec.title)}</div>`
+      const rows: string[] = []
+      const adds: string[] = []
+      for (const c of controls) {
+        const css = (c as { css?: string }).css
+        // hideWhenAuto: an unset/auto-computed control is offered as "+" instead of
+        // showing a misleading browser-computed value.
+        if (
+          c.kind === 'len' &&
+          (c as { hideWhenAuto?: boolean }).hideWhenAuto &&
+          css &&
+          !this.revealedCtls.has(css) &&
+          this.controlState([css]) === 'auto'
+        ) {
+          adds.push(`<button class="uiv-addctl" data-css="${css}">+ ${escapeHtml(c.label)}</button>`)
+        } else {
+          rows.push(this.controlRow(c))
+        }
+      }
+      const addRow = adds.length ? `<div class="uiv-adds">${adds.join('')}</div>` : ''
+      return `<div class="uiv-sec">${this.accordionTitle(sec.title)}${rows.join('')}${addRow}</div>`
     }).join('')
     return legend + secs
   }
@@ -1397,9 +1433,14 @@ class Uivisor {
 
     if (c.kind === 'len') {
       const v = this.liveNum(c.css)
+      // A revealed but still-auto control (e.g. an added Width/Height) shows EMPTY
+      // with the computed value as a faint placeholder — it isn't a set value.
+      const auto = c.hideWhenAuto && this.controlState([c.css]) === 'auto'
+      const value = auto || v == null ? '' : String(round2(v))
+      const placeholder = auto && v != null ? `${round2(v)} (auto)` : '—'
       return (
         `<div class="uiv-ctl${this.controlStateClass([c.css])}">${this.ctlLabel(c.label, [c.css])}` +
-        `<div class="cfield">${this.numField(c.css, v == null ? '' : String(round2(v)), c.icon, this.isChanged([c.css]), false, '—')}</div>` +
+        `<div class="cfield">${this.numField(c.css, value, c.icon, this.isChanged([c.css]), false, placeholder)}</div>` +
         `<span></span></div>` +
         this.tokenRowHtml(c.css, 'Token')
       )
@@ -1514,6 +1555,14 @@ class Uivisor {
       btn.addEventListener('click', () => {
         if (this.collapsedSecs.has(sec)) this.collapsedSecs.delete(sec)
         else this.collapsedSecs.add(sec)
+        this.renderBody()
+      })
+    })
+    root.querySelectorAll('.uiv-addctl').forEach((node) => {
+      const btn = node as HTMLElement
+      const css = btn.getAttribute('data-css')!
+      btn.addEventListener('click', () => {
+        this.revealedCtls.add(css) // reveal the hidden control so you can set it
         this.renderBody()
       })
     })

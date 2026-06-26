@@ -137,10 +137,22 @@ export const CSS = /* css */ `
 .uiv-rv.changed { color: #4ade80; } /* edited in uivisor → green */
 
 /* control-row state: file (authored) · edited (this breakpoint) · auto (computed) */
-.uiv-ctl.st-file > .clabel { color: #e4e4e7; }
-.uiv-ctl.st-edited > .clabel { color: #4ade80; }
-.uiv-ctl.st-auto > .clabel { color: #6b7280; }
-.uiv-ctl.st-inherit > .clabel { color: #38bdf8; } /* value cascaded from another bp */
+/* 3-state colour on BOTH the label and the value (input / select text) */
+.uiv-ctl.st-file > .clabel,
+.uiv-ctl.st-file .uiv-num input, .uiv-ctl.st-file select.uiv-sel { color: #e4e4e7; }
+.uiv-ctl.st-edited > .clabel,
+.uiv-ctl.st-edited .uiv-num input, .uiv-ctl.st-edited select.uiv-sel { color: #4ade80; }
+.uiv-ctl.st-inherit > .clabel,
+.uiv-ctl.st-inherit .uiv-num input, .uiv-ctl.st-inherit select.uiv-sel { color: #38bdf8; } /* cascaded */
+.uiv-ctl.st-auto > .clabel,
+.uiv-ctl.st-auto .uiv-num input, .uiv-ctl.st-auto select.uiv-sel { color: #6b7280; }
+
+/* "+" chips for hidden auto controls (width/height when not set) */
+.uiv-adds { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.uiv-addctl { cursor: pointer; border: 1px dashed #52525b; background: transparent;
+  color: #71717a; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 600;
+  font-family: ui-monospace, monospace; }
+.uiv-addctl:hover { color: #fff; border-color: #6366f1; }
 .uiv-inh { font-size: 9px; font-weight: 700; color: #38bdf8; font-family: ui-monospace, monospace;
   background: #0c4a6e55; border: 1px solid #0369a1; border-radius: 4px; padding: 0 3px; margin-left: 2px; }
 .uiv-leg { display: flex; gap: 12px; padding: 8px 12px 2px; font-size: 9px;
@@ -240,6 +252,16 @@ export const CSS = /* css */ `
 .uiv-btn.primary { background: #4f46e5; border-color: #6366f1; color: #fff; flex-basis: 100%; }
 .uiv-btn.primary:hover { background: #4338ca; }
 .uiv-btn.ghost { flex: 0 0 auto; }
+/* floating read-only "all styles" block, docked bottom-right, left of the panel */
+.uiv-info { position: fixed; right: 352px; bottom: 16px; z-index: 2147483646;
+  width: 216px; max-height: 52vh; overflow: auto; display: none;
+  background: rgba(24,24,27,0.86); color: #e4e4e7;
+  border: 1px solid #3f3f46; border-radius: 10px; padding: 8px 10px;
+  font-size: 11px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); }
+.uiv-info.show { display: block; }
+.uiv-info-h { font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
+  color: #8b8b94; font-weight: 600; margin-bottom: 6px; }
+.uiv-info-sub { color: #52525b; }
 .uiv-toast { position: fixed; right: 16px; bottom: 128px; z-index: 2147483647;
   background: #22c55e; color: #052e16; padding: 8px 12px; border-radius: 8px;
   font-size: 12px; font-weight: 600; display: none; }
