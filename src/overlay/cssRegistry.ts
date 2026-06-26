@@ -75,16 +75,23 @@ function categoryFor(p: string): string {
   return 'Misc'
 }
 
-/** Best-effort input type for an unknown property, from its current value. */
+/** Best-effort input type for an unknown property, from its value AND its name —
+ *  a keyword computed value (e.g. width:auto) must not freeze a numeric/colour
+ *  property into a plain text box. */
 function typeForValue(p: string, v: string): CssInputType {
   const s = (v || '').trim()
+  // value-driven (most reliable when the value is concrete)
   if (/color/.test(p) || /^(rgb|rgba|hsl|hsla|#|currentcolor|transparent)\b/i.test(s)) return 'color'
   if (/^-?\d*\.?\d+(px|em|rem|%|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pt|pc|q)$/i.test(s)) return 'length'
   if (/^-?\d*\.?\d+(s|ms)$/i.test(s)) return 'time'
   if (/^-?\d*\.?\d+(deg|rad|grad|turn)$/i.test(s)) return 'angle'
+  if (/^(url\(|linear-gradient|radial-gradient|conic-gradient)/i.test(s)) return 'image'
+  // name-driven fallback (for keyword/auto values)
+  if (/(^|-)color$/.test(p)) return 'color'
+  if (/(width|height|size|^inset|margin|padding|gap|^top$|^left$|^right$|^bottom$|spacing|indent|offset|radius|translate|^scroll-padding|^scroll-margin)/.test(p))
+    return 'length'
   if (/^-?\d+$/.test(s)) return 'integer'
   if (/^-?\d*\.?\d+$/.test(s)) return 'number'
-  if (/^(url\(|linear-gradient|radial-gradient|conic-gradient)/i.test(s)) return 'image'
   return 'string'
 }
 

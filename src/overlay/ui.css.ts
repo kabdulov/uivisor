@@ -253,7 +253,7 @@ export const CSS = /* css */ `
 .uiv-btn.primary:hover { background: #4338ca; }
 .uiv-btn.ghost { flex: 0 0 auto; }
 /* floating read-only "all styles" block, docked bottom-right, left of the panel */
-.uiv-info { position: fixed; right: 352px; bottom: 16px; z-index: 2147483646;
+.uiv-info { position: fixed; right: 384px; bottom: 16px; z-index: 2147483646;
   width: 216px; max-height: 52vh; overflow: auto; display: none;
   background: rgba(24,24,27,0.86); color: #e4e4e7;
   border: 1px solid #3f3f46; border-radius: 10px; padding: 8px 10px;

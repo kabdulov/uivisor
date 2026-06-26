@@ -28,7 +28,7 @@ import {
   detectDesignSystem,
   nearestToken,
 } from './designtokens.js'
-import { type CssMeta, cssRegistry } from './cssRegistry.js'
+import { type CssMeta, cssMeta, cssRegistry } from './cssRegistry.js'
 import { detectMechanism } from './mechanism.js'
 import { collapseChanges, renderPrompt, renderSpec } from './prompt.js'
 import { getIdentity } from './source.js'
@@ -784,13 +784,16 @@ class Uivisor {
     const el = this.selected
     const st = this.st()
     if (!el || !st) return
-    const sibs = this.siblingsOf(el)
+    // Clear only the edit at the ACTIVE breakpoint (others keep their own); then
+    // re-project the live overrides for the cascade + target. (Was: deleted the
+    // property at ALL breakpoints and ignored target — wrong for per-bp editing.)
+    const scope = this.activeScope()
     for (const css of cssList) {
-      for (const e of sibs) removeOverride(e, css)
-      st.applied.delete(css)
-      st.record.changes = st.record.changes.filter((c) => c.property !== css)
+      st.record.changes = st.record.changes.filter(
+        (c) => !(c.property === css && c.breakpoint === scope.name),
+      )
     }
-    this.reposition()
+    this.reapplyScope()
     this.renderBody()
   }
 
@@ -1568,15 +1571,22 @@ class Uivisor {
         `<input type="text" class="uiv-gtext uiv-gtextc" ${da} value="${escapeAttr(cur)}" placeholder="—" spellcheck="false"></div>`
       )
     }
+    // Shorthands / grid templates: don't pre-fill the COMPUTED value (it's resolved,
+    // e.g. "100px 200px" not "1fr 1fr", and would freeze authored CSS as !important).
+    // Show empty + the computed as a faint placeholder until you actually type — unless
+    // you've already edited it (then show your value).
+    const complex = (m.type === 'shorthand' || m.shorthand || /^grid-template/.test(prop)) && !this.isChanged([prop])
+    const val = complex ? '' : cur
+    const ph = complex && cur ? escapeAttr(cur) : '—'
     const numeric =
       m.type === 'length' || m.type === 'number' || m.type === 'integer' || m.type === 'percentage' || m.type === 'time' || m.type === 'angle'
     if (numeric) {
       return (
         `<div class="uiv-gnum"><span class="uiv-scrub uiv-gscrub" ${da} title="Drag to change">${ICONS.size}</span>` +
-        `<input type="text" class="uiv-gtext" ${da} value="${escapeAttr(cur)}" placeholder="—" spellcheck="false"></div>`
+        `<input type="text" class="uiv-gtext" ${da} value="${escapeAttr(val)}" placeholder="${ph}" spellcheck="false"></div>`
       )
     }
-    return `<input type="text" class="uiv-gtext uiv-gtextonly" ${da} value="${escapeAttr(cur)}" placeholder="—" spellcheck="false">`
+    return `<input type="text" class="uiv-gtext uiv-gtextonly" ${da} value="${escapeAttr(val)}" placeholder="${ph}" spellcheck="false">`
   }
 
   /** Bind the "All CSS" search, category toggles and generic inputs. */
@@ -1585,12 +1595,13 @@ class Uivisor {
     const search = root.querySelector('.uiv-csssearch') as HTMLInputElement | null
     if (search) {
       search.addEventListener('input', () => {
+        const pos = search.selectionStart ?? search.value.length
         this.cssSearch = search.value
         this.renderBody()
         const s2 = this.root.querySelector('.uiv-csssearch') as HTMLInputElement | null
         if (s2) {
           s2.focus()
-          s2.setSelectionRange(s2.value.length, s2.value.length)
+          s2.setSelectionRange(pos, pos) // keep the caret where the user is typing
         }
       })
     }
@@ -1613,7 +1624,14 @@ class Uivisor {
     })
     root.querySelectorAll('.uiv-gcolor').forEach((node) => {
       const inp = node as HTMLInputElement
-      inp.addEventListener('change', () => commit(inp.getAttribute('data-gprop')!, inp.value))
+      const prop = inp.getAttribute('data-gprop')!
+      inp.addEventListener('change', () => {
+        // The picker shows #000000 for transparent/currentcolor/gradient values; a
+        // no-op close must not paint black. Only commit a genuine change. (For those
+        // values, use the text field — it commits any raw value.)
+        if (inp.value.toLowerCase() === toHexInput(this.liveVal(prop)).toLowerCase()) return
+        commit(prop, inp.value)
+      })
     })
     root.querySelectorAll('.uiv-gtext').forEach((node) => {
       const inp = node as HTMLInputElement
@@ -1630,13 +1648,28 @@ class Uivisor {
     })
   }
 
+  /** Default unit for a numeric property when the current value carries none —
+   *  from the registry type, so a unitless number never gets a bogus "px". */
+  private defaultUnit(prop: string): string {
+    const t = cssMeta(prop)?.type
+    if (t === 'number' || t === 'integer') return ''
+    if (t === 'time') return 's'
+    if (t === 'angle') return 'deg'
+    if (t === 'percentage') return '%'
+    return 'px' // length & fallback
+  }
+
   private bindGenericScrub(handle: HTMLElement, input: HTMLInputElement, prop: string): void {
     handle.addEventListener('pointerdown', (e: PointerEvent) => {
       e.preventDefault()
       const startX = e.clientX
-      const m = /^(-?\d*\.?\d+)(.*)$/.exec(input.value.trim())
+      const m = /^(-?\d*\.?\d+)(\D*)$/.exec(input.value.trim())
       const start = m ? parseFloat(m[1]) : 0
-      const unit = (m && m[2]) || (/^-?\d+$/.test(input.value.trim()) ? '' : 'px')
+      // Keep the value's own unit; only fall back to the registry default when there
+      // is none (so a unitless 0.5 stays unitless, not "1.5px").
+      const unit = m && m[2] ? m[2] : this.defaultUnit(prop)
+      const unitless = unit === ''
+      const step = unitless ? (cssMeta(prop)?.type === 'integer' ? 1 : 0.01) : 1
       let pushed = false
       try {
         handle.setPointerCapture(e.pointerId)
@@ -1648,8 +1681,9 @@ class Uivisor {
           this.pushHistory()
           pushed = true
         }
-        let nv = start + Math.round(ev.clientX - startX)
-        if (ev.shiftKey) nv = Math.round(nv / 10) * 10
+        let nv = start + Math.round(ev.clientX - startX) * step
+        if (ev.shiftKey) nv = Math.round(nv / (10 * step)) * 10 * step
+        nv = +nv.toFixed(unitless && step < 1 ? 2 : 0)
         input.value = `${nv}${unit}`
         this.liveSet([prop], input.value)
       }
@@ -1700,6 +1734,8 @@ class Uivisor {
       const input = node as HTMLInputElement
       const css = input.getAttribute('data-css')!
       input.addEventListener('change', () => {
+        // Skip a no-op (picker shows #000000 for transparent/keyword colours).
+        if (input.value.toLowerCase() === toHexInput(this.liveVal(css)).toLowerCase()) return
         this.pushHistory()
         this.commitValue([css], input.value)
       })
@@ -2099,7 +2135,7 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 }
 function escapeAttr(s: string): string {
-  return s.replace(/"/g, '&quot;')
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
 function cssAttrEscape(s: string): string {
   return s.replace(/["\\]/g, '\\$&')
