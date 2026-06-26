@@ -1,6 +1,6 @@
 {
   "name": "uivisor",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "description": "Dev-only visual UI tweaker that turns mouse edits into a precise, breakpoint-aware prompt for your AI coding agent — without touching your source.",
   "license": "MIT",
