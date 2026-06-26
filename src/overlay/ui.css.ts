@@ -59,7 +59,7 @@ export const CSS = /* css */ `
 
 .uiv-panel {
   position: fixed; right: 16px; bottom: 72px; z-index: 2147483647;
-  width: 328px; max-height: 80vh; overflow: auto;
+  width: 360px; max-height: 84vh; overflow: auto;
   background: #18181b; color: #e4e4e7; border: 1px solid #3f3f46;
   border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
   font-size: 12px; display: none;
@@ -262,6 +262,36 @@ export const CSS = /* css */ `
 .uiv-info-h { font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
   color: #8b8b94; font-weight: 600; margin-bottom: 6px; }
 .uiv-info-sub { color: #52525b; }
+/* ---- All CSS inspector (search + categories + generic smart inputs) ---- */
+.uiv-csssearch { width: 100%; background: #0f0f12; border: 1px solid #3f3f46; color: #e4e4e7;
+  border-radius: 7px; padding: 7px 9px; font-size: 12px; outline: none; font-family: ui-monospace, monospace; }
+.uiv-csssearch:focus { border-color: #6366f1; }
+.uiv-csssearch::placeholder { color: #6b6b73; }
+.uiv-catacc .uiv-catn { color: #52525b; font-weight: 700; margin-left: auto; }
+.uiv-gctl { grid-template-columns: 108px 1fr; gap: 8px; margin-bottom: 5px; }
+.uiv-gplabel { font-family: ui-monospace, monospace; font-size: 10px; color: #a1a1aa;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uiv-gsel { width: 100%; background: #27272a; border: 1px solid #3f3f46; color: #fff;
+  border-radius: 7px; padding: 5px 6px; font-size: 11px; outline: none; font-family: ui-monospace, monospace; }
+.uiv-gsel:focus { border-color: #6366f1; }
+.uiv-gnum { display: flex; align-items: stretch; background: #27272a; border: 1px solid #3f3f46;
+  border-radius: 7px; overflow: hidden; }
+.uiv-gnum:focus-within { border-color: #6366f1; }
+.uiv-gtext { flex: 1; min-width: 0; background: #27272a; border: 1px solid #3f3f46; color: #fff;
+  border-radius: 7px; padding: 5px 7px; font-size: 11px; outline: none; font-family: ui-monospace, monospace; }
+.uiv-gnum .uiv-gtext { border: none; border-radius: 0; background: transparent; padding-left: 2px; }
+.uiv-gtext:focus { border-color: #6366f1; }
+.uiv-gtext::placeholder { color: #6b6b73; }
+.uiv-gcolorwrap { display: flex; gap: 5px; align-items: center; }
+.uiv-gcolor { width: 28px; height: 26px; padding: 2px; flex: 0 0 auto; background: #27272a;
+  border: 1px solid #3f3f46; border-radius: 7px; cursor: pointer; }
+.uiv-gtextc { flex: 1; }
+.uiv-gctl.st-file .uiv-gtext, .uiv-gctl.st-file .uiv-gsel { color: #e4e4e7; }
+.uiv-gctl.st-edited .uiv-gtext, .uiv-gctl.st-edited .uiv-gsel { color: #4ade80; }
+.uiv-gctl.st-edited .uiv-gnum, .uiv-gctl.st-edited .uiv-gsel { border-color: #4ade80; }
+.uiv-gctl.st-inherit .uiv-gtext, .uiv-gctl.st-inherit .uiv-gsel { color: #38bdf8; }
+.uiv-gctl.st-auto .uiv-gtext, .uiv-gctl.st-auto .uiv-gsel { color: #6b7280; }
+
 .uiv-toast { position: fixed; right: 16px; bottom: 128px; z-index: 2147483647;
   background: #22c55e; color: #052e16; padding: 8px 12px; border-radius: 8px;
   font-size: 12px; font-weight: 600; display: none; }

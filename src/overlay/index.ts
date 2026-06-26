@@ -28,6 +28,7 @@ import {
   detectDesignSystem,
   nearestToken,
 } from './designtokens.js'
+import { type CssMeta, cssRegistry } from './cssRegistry.js'
 import { detectMechanism } from './mechanism.js'
 import { collapseChanges, renderPrompt, renderSpec } from './prompt.js'
 import { getIdentity } from './source.js'
@@ -73,6 +74,9 @@ class Uivisor {
   private collapsedSecs = new Set<string>()
   /** Controls manually revealed via "+" (hideWhenAuto controls that are auto). */
   private revealedCtls = new Set<string>()
+  /** "All CSS" search query + which property categories are expanded. */
+  private cssSearch = ''
+  private expandedCats = new Set<string>()
   /** Undo / redo stacks of full edit-state snapshots. */
   private undoStack: HistorySnap[] = []
   private redoStack: HistorySnap[] = []
@@ -530,7 +534,9 @@ class Uivisor {
       }
       this.states.set(el, {
         record,
-        original: snapshot(el, ALL_CSS),
+        // Snapshot every registry property (not just the curated set) so a generic
+        // edit's "before" value is known — the All-CSS inspector edits anything.
+        original: snapshot(el, this.snapshotProps()),
         applied: new Set(),
         dimUnit: {},
       })
@@ -539,6 +545,13 @@ class Uivisor {
     if (el) this.reapplyScope()
     this.reposition()
     this.renderBody()
+  }
+
+  /** Properties to snapshot on selection: the curated set ∪ the whole registry. */
+  private _snapProps: string[] | null = null
+  private snapshotProps(): string[] {
+    if (!this._snapProps) this._snapProps = [...new Set([...ALL_CSS, ...cssRegistry().byProp.keys()])]
+    return this._snapProps
   }
 
   // ---- value helpers ----
@@ -873,6 +886,7 @@ class Uivisor {
       ${this.breakpointBarHtml()}
       ${this.targetHtml(st)}
       ${this.controlsHtml(this.context(this.selected))}
+      ${this.allCssHtml()}
       ${this.journalHtml()}
     `
     if (this.responsive) this.renderFrameBar()
@@ -1492,8 +1506,166 @@ class Uivisor {
     )
   }
 
+  // ---- "All CSS" comprehensive inspector (registry-driven, same engine) ----
+  /** Search box + categorised accordions covering EVERY CSS property. Additive —
+   *  the curated quick controls above are untouched. */
+  private allCssHtml(): string {
+    const reg = cssRegistry()
+    const q = this.cssSearch.trim().toLowerCase()
+    const search =
+      `<div class="uiv-sec"><div class="uiv-sectitle">All CSS · ${reg.byProp.size} properties</div>` +
+      `<input class="uiv-csssearch" placeholder="Search any CSS property…" value="${escapeAttr(this.cssSearch)}" spellcheck="false"></div>`
+    if (q) {
+      const hits: CssMeta[] = []
+      for (const [prop, m] of reg.byProp) if (prop.includes(q)) hits.push(m)
+      hits.sort((a, b) => a.property.localeCompare(b.property))
+      const rows = hits.slice(0, 60).map((m) => this.genericRow(m)).join('')
+      const more = hits.length > 60 ? `<div class="uiv-bphint">+${hits.length - 60} more — refine the search</div>` : ''
+      return (
+        search +
+        `<div class="uiv-sec"><div class="uiv-sectitle">Results (${hits.length})</div>` +
+        (rows || '<div class="uiv-empty">No property matches.</div>') +
+        more +
+        `</div>`
+      )
+    }
+    const cats = reg.categories
+      .map((c) => {
+        const open = this.expandedCats.has(c.name)
+        const head =
+          `<button class="uiv-sectitle uiv-catacc${open ? '' : ' collapsed'}" data-cat="${escapeAttr(c.name)}">` +
+          `<span class="uiv-chev">${ICONS.chevron}</span>${c.name} <span class="uiv-catn">${c.props.length}</span></button>`
+        const body = open ? c.props.map((p) => this.genericRow(reg.byProp.get(p)!)).join('') : ''
+        return `<div class="uiv-sec">${head}${body}</div>`
+      })
+      .join('')
+    return search + cats
+  }
+
+  private genericRow(m: CssMeta): string {
+    const prop = m.property
+    return (
+      `<div class="uiv-ctl uiv-gctl${this.controlStateClass([prop])}">` +
+      `<span class="clabel uiv-gplabel" title="${escapeAttr(prop)}">${escapeHtml(prop)}</span>` +
+      `<div class="cfield">${this.genericField(m)}</div></div>`
+    )
+  }
+
+  /** Smart input for one property, by its registry type. Commits via the engine. */
+  private genericField(m: CssMeta): string {
+    const prop = m.property
+    const cur = this.liveVal(prop)
+    const da = `data-gprop="${escapeAttr(prop)}"`
+    if (m.type === 'enum' && m.keywords && m.keywords.length) {
+      const c = cur.trim()
+      const list = c && !m.keywords.includes(c) ? [c, ...m.keywords] : m.keywords
+      const opts = list.map((k) => `<option value="${escapeAttr(k)}"${k === c ? ' selected' : ''}>${escapeHtml(k)}</option>`).join('')
+      return `<select class="uiv-gsel" ${da}>${opts}</select>`
+    }
+    if (m.type === 'color') {
+      return (
+        `<div class="uiv-gcolorwrap"><input type="color" class="uiv-gcolor" ${da} value="${toHexInput(cur)}">` +
+        `<input type="text" class="uiv-gtext uiv-gtextc" ${da} value="${escapeAttr(cur)}" placeholder="—" spellcheck="false"></div>`
+      )
+    }
+    const numeric =
+      m.type === 'length' || m.type === 'number' || m.type === 'integer' || m.type === 'percentage' || m.type === 'time' || m.type === 'angle'
+    if (numeric) {
+      return (
+        `<div class="uiv-gnum"><span class="uiv-scrub uiv-gscrub" ${da} title="Drag to change">${ICONS.size}</span>` +
+        `<input type="text" class="uiv-gtext" ${da} value="${escapeAttr(cur)}" placeholder="—" spellcheck="false"></div>`
+      )
+    }
+    return `<input type="text" class="uiv-gtext uiv-gtextonly" ${da} value="${escapeAttr(cur)}" placeholder="—" spellcheck="false">`
+  }
+
+  /** Bind the "All CSS" search, category toggles and generic inputs. */
+  private bindGeneric(): void {
+    const root = this.root
+    const search = root.querySelector('.uiv-csssearch') as HTMLInputElement | null
+    if (search) {
+      search.addEventListener('input', () => {
+        this.cssSearch = search.value
+        this.renderBody()
+        const s2 = this.root.querySelector('.uiv-csssearch') as HTMLInputElement | null
+        if (s2) {
+          s2.focus()
+          s2.setSelectionRange(s2.value.length, s2.value.length)
+        }
+      })
+    }
+    root.querySelectorAll('.uiv-catacc').forEach((node) => {
+      const btn = node as HTMLElement
+      const cat = btn.getAttribute('data-cat')!
+      btn.addEventListener('click', () => {
+        if (this.expandedCats.has(cat)) this.expandedCats.delete(cat)
+        else this.expandedCats.add(cat)
+        this.renderBody()
+      })
+    })
+    const commit = (prop: string, value: string) => {
+      this.pushHistory()
+      this.commitValue([prop], value, true)
+    }
+    root.querySelectorAll('.uiv-gsel').forEach((node) => {
+      const sel = node as HTMLSelectElement
+      sel.addEventListener('change', () => commit(sel.getAttribute('data-gprop')!, sel.value))
+    })
+    root.querySelectorAll('.uiv-gcolor').forEach((node) => {
+      const inp = node as HTMLInputElement
+      inp.addEventListener('change', () => commit(inp.getAttribute('data-gprop')!, inp.value))
+    })
+    root.querySelectorAll('.uiv-gtext').forEach((node) => {
+      const inp = node as HTMLInputElement
+      inp.addEventListener('change', () => commit(inp.getAttribute('data-gprop')!, inp.value))
+      inp.addEventListener('keydown', (e) => {
+        if ((e as KeyboardEvent).key === 'Enter') inp.blur()
+      })
+    })
+    root.querySelectorAll('.uiv-gscrub').forEach((node) => {
+      const handle = node as HTMLElement
+      const prop = handle.getAttribute('data-gprop')!
+      const input = handle.parentElement!.querySelector('input') as HTMLInputElement
+      this.bindGenericScrub(handle, input, prop)
+    })
+  }
+
+  private bindGenericScrub(handle: HTMLElement, input: HTMLInputElement, prop: string): void {
+    handle.addEventListener('pointerdown', (e: PointerEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const m = /^(-?\d*\.?\d+)(.*)$/.exec(input.value.trim())
+      const start = m ? parseFloat(m[1]) : 0
+      const unit = (m && m[2]) || (/^-?\d+$/.test(input.value.trim()) ? '' : 'px')
+      let pushed = false
+      try {
+        handle.setPointerCapture(e.pointerId)
+      } catch {
+        /* noop */
+      }
+      const move = (ev: PointerEvent) => {
+        if (!pushed) {
+          this.pushHistory()
+          pushed = true
+        }
+        let nv = start + Math.round(ev.clientX - startX)
+        if (ev.shiftKey) nv = Math.round(nv / 10) * 10
+        input.value = `${nv}${unit}`
+        this.liveSet([prop], input.value)
+      }
+      const up = () => {
+        handle.removeEventListener('pointermove', move)
+        handle.removeEventListener('pointerup', up)
+        this.recordProps([prop])
+      }
+      handle.addEventListener('pointermove', move)
+      handle.addEventListener('pointerup', up)
+    })
+  }
+
   private bindControls(): void {
     const root = this.root
+    this.bindGeneric()
     root.querySelectorAll('.uiv-num:not(.uiv-dim)').forEach((node) => {
       const box = node as HTMLElement
       const cssList = (box.getAttribute('data-css') || '').split(',').filter(Boolean)
