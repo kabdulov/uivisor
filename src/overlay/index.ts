@@ -112,6 +112,9 @@ class Uivisor {
   private cssSearch = ''
   private expandedCats = new Set<string>()
   private showAllCats = new Set<string>()
+  /** Box-model widget: spacing-token picker open + the last-focused side it targets. */
+  private bmTokenOpen = false
+  private lastBmSide = 'padding-top'
   /** Undo / redo stacks of full edit-state snapshots. */
   private undoStack: HistorySnap[] = []
   private redoStack: HistorySnap[] = []
@@ -1291,9 +1294,23 @@ class Uivisor {
       return n == null ? '0' : String(round2(n))
     }
     const side = (css: string, pos: string) =>
-      `<input class="uiv-bm-i ${pos}${this.controlStateClass([css])}" data-css="${css}" value="${escapeAttr(num(css))}" title="${css}" spellcheck="false">`
+      `<input class="uiv-bm-i ${pos}${this.controlStateClass([css])}" data-css="${css}" value="${escapeAttr(num(css))}" title="${css}" inputmode="decimal" spellcheck="false">`
+    // Spacing design tokens (if the project exposes any) → a per-side token picker.
+    const spaceTokens = this.designSystem().byCategory['spacing'] ?? []
+    const tokBtn = spaceTokens.length
+      ? `<button class="uiv-bm-tok${this.bmTokenOpen ? ' on' : ''}" title="Apply a spacing token to the focused field">◆ token</button>`
+      : ''
+    const chips =
+      this.bmTokenOpen && spaceTokens.length
+        ? `<div class="uiv-bm-chips">` +
+          `<span class="uiv-bphint" style="width:100%">Token → <b>${escapeHtml(this.lastBmSide)}</b>:</span>` +
+          spaceTokens
+            .map((t) => `<button class="uiv-bm-chip" data-var="${escapeAttr(t.cssVar)}" title="${escapeAttr(t.value)}">${escapeHtml(t.name)} · ${escapeHtml(t.value)}</button>`)
+            .join('') +
+          `</div>`
+        : ''
     return (
-      `<div class="uiv-bm">` +
+      `<div class="uiv-bm">${tokBtn}` +
       `<span class="uiv-bm-tag">MARGIN</span>` +
       side('margin-top', 'bm-top') +
       side('margin-right', 'bm-right') +
@@ -1304,7 +1321,8 @@ class Uivisor {
       side('padding-right', 'bm-right') +
       side('padding-bottom', 'bm-bottom') +
       side('padding-left', 'bm-left') +
-      `<div class="uiv-bm-content"></div></div></div>`
+      `<div class="uiv-bm-content"></div></div></div>` +
+      chips
     )
   }
 
@@ -1835,12 +1853,62 @@ class Uivisor {
     root.querySelectorAll('.uiv-bm-i').forEach((node) => {
       const inp = node as HTMLInputElement
       const css = inp.getAttribute('data-css')!
+      inp.addEventListener('focus', () => {
+        this.lastBmSide = css
+      })
       inp.addEventListener('change', () => {
         this.pushHistory()
         this.commitNumeric([css], inp.value)
       })
       inp.addEventListener('keydown', (e) => {
         if ((e as KeyboardEvent).key === 'Enter') inp.blur()
+      })
+      // Drag horizontally on the number to scrub (Figma-style); a plain click still
+      // focuses it for typing.
+      inp.addEventListener('pointerdown', (e: PointerEvent) => {
+        const startX = e.clientX
+        const startVal = parseFloat(inp.value) || 0
+        let moved = false
+        let pushed = false
+        const move = (ev: PointerEvent) => {
+          if (!moved && Math.abs(ev.clientX - startX) < 3) return
+          if (!moved) {
+            moved = true
+            inp.blur()
+          }
+          if (!pushed) {
+            this.pushHistory()
+            pushed = true
+          }
+          let nv = startVal + Math.round(ev.clientX - startX)
+          if (ev.shiftKey) nv = Math.round(nv / 10) * 10
+          nv = Math.max(0, nv)
+          inp.value = String(nv)
+          this.liveSet([css], `${nv}px`)
+        }
+        const up = () => {
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+          if (moved) this.recordProps([css])
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      })
+    })
+    const tokBtn = root.querySelector('.uiv-bm-tok') as HTMLElement | null
+    if (tokBtn)
+      tokBtn.addEventListener('click', () => {
+        this.bmTokenOpen = !this.bmTokenOpen
+        this.renderBody()
+      })
+    root.querySelectorAll('.uiv-bm-chip').forEach((node) => {
+      const btn = node as HTMLElement
+      const cssVar = btn.getAttribute('data-var')!
+      btn.addEventListener('click', () => {
+        const token = this.designSystem().tokens.find((t) => t.cssVar === cssVar)
+        if (token) this.applyToken(this.lastBmSide, token)
+        this.bmTokenOpen = false
+        this.renderBody()
       })
     })
     root.querySelectorAll('.uiv-num:not(.uiv-dim)').forEach((node) => {
