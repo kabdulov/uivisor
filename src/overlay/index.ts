@@ -927,6 +927,7 @@ class Uivisor {
         <div class="uiv-src">${escapeHtml(src)}</div>
         <span class="uiv-mech">${st.record.styling.primaryMechanism}</span>
       </div>
+      ${this.alignToolbarHtml()}
       ${this.dsIndicatorHtml()}
       ${this.breakpointBarHtml()}
       ${this.targetHtml(st)}
@@ -1284,6 +1285,33 @@ class Uivisor {
     if (req === 'text') return ctx.hasText
     if (req === 'flexgrid') return ctx.flexGrid
     return true
+  }
+
+  /** Framer-style top alignment toolbar — justify (horizontal) + align (vertical)
+   *  icon buttons. Shown for flex/grid containers (where they apply). */
+  private alignToolbarHtml(): string {
+    const el = this.selected
+    if (!el || !this.context(el).flexGrid) return ''
+    const j = this.liveVal('justify-content').trim()
+    const a = this.liveVal('align-items').trim()
+    const g = (r: string) => `<svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor">${r}</svg>`
+    const JI: Record<string, string> = {
+      'flex-start': g('<rect x="1" y="3" width="2" height="8"/><rect x="4" y="3" width="2" height="8"/>'),
+      center: g('<rect x="4" y="3" width="2" height="8"/><rect x="8" y="3" width="2" height="8"/>'),
+      'flex-end': g('<rect x="8" y="3" width="2" height="8"/><rect x="11" y="3" width="2" height="8"/>'),
+      'space-between': g('<rect x="1" y="3" width="2" height="8"/><rect x="11" y="3" width="2" height="8"/>'),
+    }
+    const AI: Record<string, string> = {
+      'flex-start': g('<rect x="3" y="1" width="8" height="2"/><rect x="3" y="4" width="8" height="2"/>'),
+      center: g('<rect x="3" y="4" width="8" height="2"/><rect x="3" y="8" width="8" height="2"/>'),
+      'flex-end': g('<rect x="3" y="8" width="8" height="2"/><rect x="3" y="11" width="8" height="2"/>'),
+      stretch: g('<rect x="3" y="1" width="8" height="12"/>'),
+    }
+    const btn = (prop: string, val: string, icon: string, cur: string) =>
+      `<button class="uiv-tbtn${cur === val ? ' on' : ''}" data-prop="${prop}" data-val="${val}" title="${prop}: ${val}">${icon}</button>`
+    const jb = Object.entries(JI).map(([v, ic]) => btn('justify-content', v, ic, j)).join('')
+    const ab = Object.entries(AI).map(([v, ic]) => btn('align-items', v, ic, a)).join('')
+    return `<div class="uiv-toolbar"><div class="uiv-tgroup">${jb}</div><div class="uiv-tsep"></div><div class="uiv-tgroup">${ab}</div></div>`
   }
 
   /** Figma/Framer-style nested box-model widget: MARGIN ring around a PADDING ring,
@@ -1851,6 +1879,15 @@ class Uivisor {
   private bindControls(): void {
     const root = this.root
     this.bindGeneric()
+    root.querySelectorAll('.uiv-tbtn').forEach((node) => {
+      const btn = node as HTMLElement
+      const prop = btn.getAttribute('data-prop')!
+      const val = btn.getAttribute('data-val')!
+      btn.addEventListener('click', () => {
+        this.pushHistory()
+        this.commitValue([prop], val)
+      })
+    })
     root.querySelectorAll('.uiv-bm-i').forEach((node) => {
       const inp = node as HTMLInputElement
       const css = inp.getAttribute('data-css')!

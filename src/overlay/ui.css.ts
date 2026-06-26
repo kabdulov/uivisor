@@ -60,23 +60,33 @@ export const CSS = /* css */ `
 .uiv-panel {
   position: fixed; right: 16px; bottom: 72px; z-index: 2147483647;
   width: 360px; max-height: 84vh; overflow: auto;
-  background: #18181b; color: #e4e4e7; border: 1px solid #3f3f46;
-  border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  background: #141416; color: #e4e4e7; border: 1px solid #2a2a2e;
+  border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.5);
   font-size: 12px; display: none;
 }
 .uiv-panel.show { display: block; }
 
 .uiv-head {
-  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
-  border-bottom: 1px solid #27272a; position: sticky; top: 0; background: #18181b;
+  display: flex; align-items: center; gap: 8px; padding: 11px 13px;
+  border-bottom: 1px solid #242428; position: sticky; top: 0; z-index: 5; background: #141416;
 }
-.uiv-head b { font-size: 13px; color: #fff; letter-spacing: .3px; }
-.uiv-bp { margin-left: auto; font-size: 10px; padding: 2px 7px; border-radius: 999px;
+.uiv-head b { font-size: 13px; color: #fafafa; letter-spacing: .2px; }
+.uiv-bp { margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 999px;
   background: #312e81; color: #c7d2fe; font-weight: 600; }
 .uiv-x { cursor: pointer; color: #71717a; padding: 2px 4px; }
 .uiv-x:hover { color: #fff; }
 
-.uiv-sec { padding: 10px 12px; border-bottom: 1px solid #27272a; }
+.uiv-sec { padding: 11px 13px; border-bottom: 1px solid #1f1f22; }
+
+/* ---- Framer-style top alignment toolbar ---- */
+.uiv-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 13px;
+  border-bottom: 1px solid #1f1f22; }
+.uiv-tgroup { display: flex; gap: 2px; }
+.uiv-tbtn { display: flex; align-items: center; justify-content: center; width: 26px; height: 22px;
+  border-radius: 5px; background: transparent; border: 1px solid transparent; color: #8b8b94; cursor: pointer; }
+.uiv-tbtn:hover { background: #1f1f23; color: #e4e4e7; }
+.uiv-tbtn.on { background: #312e81; border-color: #4f46e5; color: #fff; }
+.uiv-tsep { width: 1px; height: 16px; background: #2a2a2e; }
 .uiv-empty { color: #71717a; padding: 18px 12px; text-align: center; }
 
 .uiv-meta { line-height: 1.5; }
@@ -188,8 +198,8 @@ export const CSS = /* css */ `
 .uiv-ctl > .cfield { min-width: 0; }
 
 /* numeric field with a scrub handle on the left */
-.uiv-num { display: flex; align-items: stretch; background: #27272a;
-  border: 1px solid #3f3f46; border-radius: 7px; overflow: hidden; }
+.uiv-num { display: flex; align-items: stretch; background: #1c1c20;
+  border: 1px solid #313138; border-radius: 7px; overflow: hidden; }
 .uiv-num.changed { border-color: #4ade80; }
 .uiv-num.changed input { color: #4ade80; } /* uivisor-edited value → green */
 .uiv-sel.changed, .uiv-color.changed { border-color: #4ade80; }
@@ -214,7 +224,7 @@ export const CSS = /* css */ `
 
 .uiv-expand { display: flex; align-items: center; justify-content: center;
   width: 26px; height: 28px; border-radius: 7px; cursor: pointer;
-  background: #27272a; border: 1px solid #3f3f46; color: #8b8b94; }
+  background: #1c1c20; border: 1px solid #313138; color: #8b8b94; }
 .uiv-expand:hover { color: #fff; background: #3f3f46; }
 .uiv-expand.on { color: #c7d2fe; border-color: #4f46e5; background: #312e81; }
 
@@ -223,13 +233,13 @@ export const CSS = /* css */ `
 
 /* Weight dropdown only — must NOT match the unit <select> inside dim fields. */
 .uiv-ctl select.uiv-sel {
-  width: 100%; background: #27272a; border: 1px solid #3f3f46; color: #fff;
+  width: 100%; background: #1c1c20; border: 1px solid #313138; color: #fff;
   border-radius: 7px; padding: 6px 7px; font-size: 12px; outline: none;
 }
 .uiv-ctl select.uiv-sel:focus { border-color: #6366f1; }
 .uiv-ctl input[type=color] { width: 100%; height: 28px; padding: 2px; cursor: pointer;
-  background: #27272a; border: 1px solid #3f3f46; border-radius: 7px; }
-.uiv-ctl input.uiv-text { width: 100%; background: #27272a; border: 1px solid #3f3f46;
+  background: #1c1c20; border: 1px solid #313138; border-radius: 7px; }
+.uiv-ctl input.uiv-text { width: 100%; background: #1c1c20; border: 1px solid #313138;
   color: #fff; border-radius: 7px; padding: 6px 7px; font-size: 12px; outline: none; }
 .uiv-ctl input.uiv-text:focus { border-color: #6366f1; }
 .uiv-ctl input.uiv-text.changed { border-color: #4ade80; color: #4ade80; }
@@ -311,20 +321,20 @@ export const CSS = /* css */ `
 .uiv-gctl { grid-template-columns: 108px 1fr; gap: 8px; margin-bottom: 5px; }
 .uiv-gplabel { font-family: ui-monospace, monospace; font-size: 10px; color: #a1a1aa;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.uiv-gsel { width: 100%; background: #27272a; border: 1px solid #3f3f46; color: #fff;
+.uiv-gsel { width: 100%; background: #1c1c20; border: 1px solid #313138; color: #fff;
   border-radius: 7px; padding: 5px 6px; font-size: 11px; outline: none; font-family: ui-monospace, monospace; }
 .uiv-gsel:focus { border-color: #6366f1; }
-.uiv-gnum { display: flex; align-items: stretch; background: #27272a; border: 1px solid #3f3f46;
+.uiv-gnum { display: flex; align-items: stretch; background: #1c1c20; border: 1px solid #313138;
   border-radius: 7px; overflow: hidden; }
 .uiv-gnum:focus-within { border-color: #6366f1; }
-.uiv-gtext { flex: 1; min-width: 0; background: #27272a; border: 1px solid #3f3f46; color: #fff;
+.uiv-gtext { flex: 1; min-width: 0; background: #1c1c20; border: 1px solid #313138; color: #fff;
   border-radius: 7px; padding: 5px 7px; font-size: 11px; outline: none; font-family: ui-monospace, monospace; }
 .uiv-gnum .uiv-gtext { border: none; border-radius: 0; background: transparent; padding-left: 2px; }
 .uiv-gtext:focus { border-color: #6366f1; }
 .uiv-gtext::placeholder { color: #6b6b73; }
 .uiv-gcolorwrap { display: flex; gap: 5px; align-items: center; }
-.uiv-gcolor { width: 28px; height: 26px; padding: 2px; flex: 0 0 auto; background: #27272a;
-  border: 1px solid #3f3f46; border-radius: 7px; cursor: pointer; }
+.uiv-gcolor { width: 28px; height: 26px; padding: 2px; flex: 0 0 auto; background: #1c1c20;
+  border: 1px solid #313138; border-radius: 7px; cursor: pointer; }
 .uiv-gtextc { flex: 1; }
 .uiv-gctl.st-file .uiv-gtext, .uiv-gctl.st-file .uiv-gsel { color: #e4e4e7; }
 .uiv-gctl.st-edited .uiv-gtext, .uiv-gctl.st-edited .uiv-gsel { color: #4ade80; }
