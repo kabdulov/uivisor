@@ -32,7 +32,57 @@ export interface CssMeta {
   box?: BoxGroup
   inherited?: boolean
   shorthand?: boolean
+  /** A commonly-used property (shown by default; rest hidden behind "show all"). */
+  common?: boolean
 }
+
+/** The Framer/Webflow-style everyday set — what a designer actually reaches for.
+ *  Everything else stays reachable via "show all" / search, just not in your face. */
+const COMMON = new Set<string>([
+  // Layout
+  'display', 'position', 'top', 'right', 'bottom', 'left', 'float', 'clear', 'z-index',
+  'box-sizing', 'visibility', 'overflow', 'overflow-x', 'overflow-y', 'opacity',
+  // Flexbox
+  'flex', 'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'align-content',
+  'align-self', 'justify-self', 'flex-grow', 'flex-shrink', 'flex-basis', 'order',
+  'gap', 'row-gap', 'column-gap',
+  // Grid
+  'grid-template-columns', 'grid-template-rows', 'grid-auto-flow', 'grid-auto-columns',
+  'grid-auto-rows', 'grid-column', 'grid-row', 'grid-area', 'justify-items', 'place-items',
+  // Spacing
+  'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+  'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+  // Sizing
+  'width', 'height', 'min-width', 'max-width', 'min-height', 'max-height',
+  'aspect-ratio', 'object-fit', 'object-position',
+  // Border
+  'border', 'border-width', 'border-style', 'border-color',
+  'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+  'border-radius', 'border-top-left-radius', 'border-top-right-radius',
+  'border-bottom-right-radius', 'border-bottom-left-radius',
+  'outline', 'outline-width', 'outline-style', 'outline-color', 'outline-offset',
+  // Background
+  'background', 'background-color', 'background-image', 'background-size',
+  'background-position', 'background-repeat', 'background-attachment', 'background-clip',
+  // Typography
+  'color', 'font', 'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
+  'line-height', 'letter-spacing', 'word-spacing', 'text-align', 'text-decoration',
+  'text-decoration-line', 'text-decoration-color', 'text-transform', 'text-indent',
+  'text-overflow', 'white-space', 'text-shadow', 'direction', 'vertical-align',
+  // Effects
+  'box-shadow', 'filter', 'backdrop-filter', 'mix-blend-mode', 'clip-path', 'cursor', 'mask',
+  // Transform
+  'transform', 'transform-origin', 'transform-style', 'perspective', 'backface-visibility',
+  'translate', 'rotate', 'scale',
+  // Animation
+  'transition', 'transition-property', 'transition-duration', 'transition-timing-function',
+  'transition-delay', 'animation', 'animation-name', 'animation-duration',
+  'animation-timing-function', 'animation-delay', 'animation-iteration-count',
+  'animation-direction', 'animation-fill-mode', 'will-change',
+  // Misc
+  'content', 'list-style', 'list-style-type', 'list-style-position', 'user-select',
+  'pointer-events', 'scroll-behavior', 'resize', 'caret-color', 'accent-color', 'appearance',
+])
 
 export interface CssRegistry {
   byProp: Map<string, CssMeta>
@@ -103,7 +153,11 @@ export function cssRegistry(): CssRegistry {
   if (_registry) return _registry
   const byProp = new Map<string, CssMeta>()
   for (const m of CSS_PROPERTY_DATA) {
-    byProp.set(m.property, { ...m, units: m.units && m.units.length ? m.units : m.type === 'length' ? DEFAULT_UNITS : undefined })
+    byProp.set(m.property, {
+      ...m,
+      units: m.units && m.units.length ? m.units : m.type === 'length' ? DEFAULT_UNITS : undefined,
+      common: COMMON.has(m.property),
+    })
   }
   try {
     if (typeof document !== 'undefined') {

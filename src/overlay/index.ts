@@ -18,6 +18,7 @@ import {
   ICONS,
   SECTIONS,
   UNIT_LABELS,
+  type BoxControl,
   type Control,
   type DimControl,
 } from './fields.js'
@@ -62,6 +63,39 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 const INHERITED_PROPS = new Set([
   'font-size', 'font-weight', 'line-height', 'letter-spacing', 'color', 'text-align', 'font-family',
 ])
+/** 4-sided side sets for the box-group editors in the All-CSS area. */
+const BOX_SIDES: Record<string, { css: string; label: string }[]> = {
+  inset: [
+    { css: 'top', label: 'T' },
+    { css: 'right', label: 'R' },
+    { css: 'bottom', label: 'B' },
+    { css: 'left', label: 'L' },
+  ],
+  padding: [
+    { css: 'padding-top', label: 'T' },
+    { css: 'padding-right', label: 'R' },
+    { css: 'padding-bottom', label: 'B' },
+    { css: 'padding-left', label: 'L' },
+  ],
+  margin: [
+    { css: 'margin-top', label: 'T' },
+    { css: 'margin-right', label: 'R' },
+    { css: 'margin-bottom', label: 'B' },
+    { css: 'margin-left', label: 'L' },
+  ],
+  radius: [
+    { css: 'border-top-left-radius', label: 'TL' },
+    { css: 'border-top-right-radius', label: 'TR' },
+    { css: 'border-bottom-right-radius', label: 'BR' },
+    { css: 'border-bottom-left-radius', label: 'BL' },
+  ],
+  'border-width': [
+    { css: 'border-top-width', label: 'T' },
+    { css: 'border-right-width', label: 'R' },
+    { css: 'border-bottom-width', label: 'B' },
+    { css: 'border-left-width', label: 'L' },
+  ],
+}
 
 class Uivisor {
   private host!: HTMLDivElement
@@ -74,9 +108,10 @@ class Uivisor {
   private collapsedSecs = new Set<string>()
   /** Controls manually revealed via "+" (hideWhenAuto controls that are auto). */
   private revealedCtls = new Set<string>()
-  /** "All CSS" search query + which property categories are expanded. */
+  /** "All CSS" search query + which property categories are expanded / showing all. */
   private cssSearch = ''
   private expandedCats = new Set<string>()
+  private showAllCats = new Set<string>()
   /** Undo / redo stacks of full edit-state snapshots. */
   private undoStack: HistorySnap[] = []
   private redoStack: HistorySnap[] = []
@@ -1509,19 +1544,38 @@ class Uivisor {
     )
   }
 
-  // ---- "All CSS" comprehensive inspector (registry-driven, same engine) ----
-  /** Search box + categorised accordions covering EVERY CSS property. Additive —
-   *  the curated quick controls above are untouched. */
+  // ---- "All CSS" inspector (registry-driven, curated like Framer/Webflow) ----
+  /** Properties already covered by the curated quick-control sections above — so we
+   *  don't show them again in the All-CSS area. */
+  private _curatedProps: Set<string> | null = null
+  private curatedCssProps(): Set<string> {
+    if (this._curatedProps) return this._curatedProps
+    const set = new Set<string>()
+    for (const sec of SECTIONS)
+      for (const c of sec.controls) {
+        if (c.kind === 'box') c.sides.forEach((s) => set.add(s.css))
+        else set.add((c as { css?: string }).css || '')
+      }
+    set.delete('')
+    this._curatedProps = set
+    return set
+  }
+
+  /**
+   * Search box + categorised accordions. By default each category shows only the
+   * COMMON properties (Framer/Webflow-style — no logical/vendor/rare noise), box
+   * groups as a 4-sided editor; "+ N more" reveals the long tail and search reaches
+   * literally everything. Additive: the curated sections above are untouched.
+   */
   private allCssHtml(): string {
     const reg = cssRegistry()
+    const curated = this.curatedCssProps()
     const q = this.cssSearch.trim().toLowerCase()
     const search =
-      `<div class="uiv-sec"><div class="uiv-sectitle">All CSS · ${reg.byProp.size} properties</div>` +
-      `<input class="uiv-csssearch" placeholder="Search any CSS property…" value="${escapeAttr(this.cssSearch)}" spellcheck="false"></div>`
+      `<div class="uiv-sec"><div class="uiv-sectitle">All CSS</div>` +
+      `<input class="uiv-csssearch" placeholder="Search any of ${reg.byProp.size} properties…" value="${escapeAttr(this.cssSearch)}" spellcheck="false"></div>`
     if (q) {
-      const hits: CssMeta[] = []
-      for (const [prop, m] of reg.byProp) if (prop.includes(q)) hits.push(m)
-      hits.sort((a, b) => a.property.localeCompare(b.property))
+      const hits = [...reg.byProp.values()].filter((m) => m.property.includes(q)).sort((a, b) => a.property.localeCompare(b.property))
       const rows = hits.slice(0, 60).map((m) => this.genericRow(m)).join('')
       const more = hits.length > 60 ? `<div class="uiv-bphint">+${hits.length - 60} more — refine the search</div>` : ''
       return (
@@ -1534,15 +1588,51 @@ class Uivisor {
     }
     const cats = reg.categories
       .map((c) => {
+        const avail = c.props.filter((p) => !curated.has(p))
+        if (!avail.length) return ''
+        const common = avail.filter((p) => reg.byProp.get(p)!.common)
         const open = this.expandedCats.has(c.name)
         const head =
           `<button class="uiv-sectitle uiv-catacc${open ? '' : ' collapsed'}" data-cat="${escapeAttr(c.name)}">` +
-          `<span class="uiv-chev">${ICONS.chevron}</span>${c.name} <span class="uiv-catn">${c.props.length}</span></button>`
-        const body = open ? c.props.map((p) => this.genericRow(reg.byProp.get(p)!)).join('') : ''
+          `<span class="uiv-chev">${ICONS.chevron}</span>${c.name} <span class="uiv-catn">${common.length}</span></button>`
+        let body = ''
+        if (open) {
+          const showAll = this.showAllCats.has(c.name)
+          body = this.renderCommonControls(showAll ? avail : common)
+          if (!showAll && avail.length > common.length)
+            body += `<button class="uiv-showall" data-cat="${escapeAttr(c.name)}">+ ${avail.length - common.length} more</button>`
+        }
         return `<div class="uiv-sec">${head}${body}</div>`
       })
+      .filter(Boolean)
       .join('')
     return search + cats
+  }
+
+  /** Render a property list: box-groups (inset etc.) as a 4-sided editor, the rest
+   *  as smart inputs. Reuses the tested box control + the generic field. */
+  private renderCommonControls(props: string[]): string {
+    const reg = cssRegistry()
+    const boxGroups: Partial<Record<string, true>> = {}
+    const singles: string[] = []
+    for (const p of props) {
+      const m = reg.byProp.get(p)!
+      if (m.box && BOX_SIDES[m.box] && !m.shorthand) boxGroups[m.box] = true
+      else singles.push(p)
+    }
+    let html = ''
+    for (const g of Object.keys(boxGroups)) html += this.boxGroupControl(g)
+    for (const p of singles) html += this.genericRow(reg.byProp.get(p)!)
+    return html
+  }
+
+  /** A 4-sided box editor for a box group (inset/padding/…), via the curated control. */
+  private boxGroupControl(group: string): string {
+    const sides = BOX_SIDES[group]
+    if (!sides) return ''
+    const icon = group === 'radius' ? ICONS.radius : group === 'border-width' ? ICONS.border : group === 'margin' ? ICONS.margin : group === 'inset' ? ICONS.margin : ICONS.padding
+    const label = { inset: 'Inset', padding: 'Padding', margin: 'Margin', radius: 'Radius', 'border-width': 'Border' }[group] || group
+    return this.controlRow({ kind: 'box', key: `g-${group}`, label, icon, sides } as BoxControl)
   }
 
   private genericRow(m: CssMeta): string {
@@ -1611,6 +1701,14 @@ class Uivisor {
       btn.addEventListener('click', () => {
         if (this.expandedCats.has(cat)) this.expandedCats.delete(cat)
         else this.expandedCats.add(cat)
+        this.renderBody()
+      })
+    })
+    root.querySelectorAll('.uiv-showall').forEach((node) => {
+      const btn = node as HTMLElement
+      const cat = btn.getAttribute('data-cat')!
+      btn.addEventListener('click', () => {
+        this.showAllCats.add(cat)
         this.renderBody()
       })
     })

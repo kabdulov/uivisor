@@ -268,6 +268,9 @@ export const CSS = /* css */ `
 .uiv-csssearch:focus { border-color: #6366f1; }
 .uiv-csssearch::placeholder { color: #6b6b73; }
 .uiv-catacc .uiv-catn { color: #52525b; font-weight: 700; margin-left: auto; }
+.uiv-showall { background: none; border: 0; color: #818cf8; cursor: pointer;
+  font-size: 10px; padding: 2px 0 4px; font-weight: 600; }
+.uiv-showall:hover { color: #a5b4fc; }
 .uiv-gctl { grid-template-columns: 108px 1fr; gap: 8px; margin-bottom: 5px; }
 .uiv-gplabel { font-family: ui-monospace, monospace; font-size: 10px; color: #a1a1aa;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
