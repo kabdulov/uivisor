@@ -159,7 +159,7 @@ class Uivisor {
     this.root.innerHTML = `
       <style>${CSS}</style>
       <div class="uiv-framewrap">
-        <div class="uiv-framebar"><div class="uiv-framechips uiv-chips"></div><span class="uiv-framew">768px</span><span class="uiv-framex" title="Exit responsive">✕</span></div>
+        <div class="uiv-framebar"><div class="uiv-framechips uiv-chips"></div><span class="uiv-framew">768px</span><span class="uiv-framex" title="Turn uivisor off (Alt+U)">✕</span></div>
         <div class="uiv-framestage">
           <div class="uiv-framehost">
             <iframe class="uiv-frame" data-uiv-frame="1"></iframe>
@@ -202,7 +202,7 @@ class Uivisor {
 
     this.fab.addEventListener('click', () => this.toggle())
     this.q('.uiv-x').addEventListener('click', () => this.toggle(false))
-    this.q('.uiv-framex').addEventListener('click', () => this.toggleResponsive(false))
+    this.q('.uiv-framex').addEventListener('click', () => this.toggle(false)) // ✕ turns uivisor off
     this.q('.copy-prompt').addEventListener('click', () => this.copyPrompt())
     this.q('.copy-json').addEventListener('click', () => this.copyJSON())
     this.q('.reset').addEventListener('click', () => this.resetSelected())
@@ -265,7 +265,26 @@ class Uivisor {
       if (this.responsive) this.toggleResponsive(false)
     } else {
       this.scheduleBpRefresh()
+      // No "Live" mode: always work in the virtual screen, sized to the current
+      // window's breakpoint by default. The frame loads once here, so there's no
+      // mid-session real→frame switch that used to drop the selection.
+      if (!this.responsive) {
+        this.frameWidth = this.defaultFrameWidth()
+        this.toggleResponsive(true)
+      }
     }
+  }
+
+  /** Frame width on enable: the real window width (≈ the current breakpoint). */
+  private defaultFrameWidth(): number {
+    return typeof window !== 'undefined' ? window.innerWidth : 1280
+  }
+
+  /** Frame width for the "all"/base chip: a phone-ish width in the base range. */
+  private baseFrameWidth(): number {
+    const bps = this.bpSystem().breakpoints
+    const firstBp = bps.length ? bps[0].minWidth : 640
+    return this.bpSystem().dir === 'min' ? Math.min(390, firstBp - 1) : 390
   }
 
   /** Stylesheets (esp. JIT/CDN Tailwind) load async — re-detect breakpoints a few
@@ -1141,13 +1160,12 @@ class Uivisor {
     const winBp = currentBreakpoint(sys).name
     const isActive = (n: string) => (this.responsive ? n === frameBp : n === winBp)
     const chip = (n: string, on: boolean, title: string) =>
-      `<button class="uiv-chip${on ? ' on' : ''}" data-bp="${n}" title="${escapeAttr(title)}">${this.bpIcon(n)}<span>${n === 'live' ? 'Live' : this.bpLabel(n)}</span></button>`
+      `<button class="uiv-chip${on ? ' on' : ''}" data-bp="${n}" title="${escapeAttr(title)}">${this.bpIcon(n)}<span>${this.bpLabel(n)}</span></button>`
     const all = chip('base', isActive('base'), 'No breakpoint — applies to every size by default')
-    const live = chip('live', !this.responsive, 'Follow your real browser window')
     const rest = sys.breakpoints
       .map((b) => chip(b.name, isActive(b.name), sys.dir === 'min' ? `≥ ${b.minWidth}px` : `≤ ${b.minWidth}px`))
       .join('')
-    return all + live + rest
+    return all + rest
   }
 
   /** Panel breakpoint bar — shown only in Live mode (in responsive mode the bar
@@ -1570,27 +1588,15 @@ class Uivisor {
       const btn = node as HTMLElement
       const bp = btn.getAttribute('data-bp')!
       btn.addEventListener('click', () => {
-        if (bp === 'live') {
-          // back to the real window (no virtual screen)
-          if (this.responsive) this.toggleResponsive(false)
-          else this.renderBody()
-          return
-        }
-        // Clicking a breakpoint resizes the virtual screen to it (entering
-        // responsive mode if needed). NEW edits scope to this breakpoint; edits
-        // already recorded at other breakpoints keep their own tags.
+        // Always in the virtual screen — a chip just resizes it (no reload, so the
+        // selection is kept). Edits already at other breakpoints keep their tags.
         const w =
           bp === 'base'
-            ? 390
+            ? this.baseFrameWidth()
             : (this.bpSystem().breakpoints.find((b) => b.name === bp)?.minWidth ?? 768)
-        this.frameWidth = w
-        if (!this.responsive) {
-          this.toggleResponsive(true) // applies frameWidth + renders
-        } else {
-          this.setFrameWidth(w)
-          this.reapplyScope() // project edits onto the newly active breakpoint
-          this.renderBody()
-        }
+        this.setFrameWidth(w)
+        this.reapplyScope() // project edits onto the newly active breakpoint
+        this.renderBody()
       })
     })
     root.querySelectorAll('.uiv-clschip').forEach((node) => {
