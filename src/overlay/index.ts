@@ -931,8 +931,8 @@ class Uivisor {
       ${this.breakpointBarHtml()}
       ${this.targetHtml(st)}
       ${this.controlsHtml(this.context(this.selected))}
-      ${this.allCssHtml()}
       ${this.journalHtml()}
+      ${this.allCssHtml()}
     `
     if (this.responsive) this.renderFrameBar()
     this.renderInfo()
