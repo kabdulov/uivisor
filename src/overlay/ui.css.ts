@@ -270,10 +270,10 @@ export const CSS = /* css */ `
 .uiv-bm-content { position: absolute; inset: 19px 26px; background: #3c3c45; border-radius: 4px; }
 .uiv-bm-tag { position: absolute; top: 2px; left: 6px; font-size: 7.5px; font-weight: 700;
   letter-spacing: .5px; color: #6b6b73; pointer-events: none; }
-.uiv-bm-i { position: absolute; width: 38px; height: 18px; padding: 0; box-sizing: border-box;
-  background: rgba(255,255,255,0.05); border: 1px solid transparent; border-radius: 5px;
-  color: #d4d4d8; text-align: center; line-height: 16px; font-size: 10px; outline: none;
-  cursor: ew-resize; font-family: ui-monospace, monospace; -moz-appearance: textfield; }
+.uiv-bm-i { position: absolute; width: 40px; height: 19px; padding: 0; box-sizing: border-box;
+  background: #0e0e11; border: 1px solid #34343c; border-radius: 5px;
+  color: #d4d4d8; text-align: center; text-align-last: center; line-height: 17px; font-size: 10px;
+  outline: none; cursor: ew-resize; font-family: ui-monospace, monospace; -moz-appearance: textfield; }
 .uiv-bm-i::-webkit-outer-spin-button, .uiv-bm-i::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .uiv-bm-i:hover { background: rgba(255,255,255,0.10); }
 .uiv-bm-i:focus { cursor: text; background: #18181b; border-color: #6366f1; }
