@@ -112,8 +112,7 @@ class Uivisor {
   private cssSearch = ''
   private expandedCats = new Set<string>()
   private showAllCats = new Set<string>()
-  /** Box-model widget: spacing-token picker open + the last-focused side it targets. */
-  private bmTokenOpen = false
+  /** Box-model widget: the last-focused side the token dropdown targets. */
   private lastBmSide = 'padding-top'
   /** Undo / redo stacks of full edit-state snapshots. */
   private undoStack: HistorySnap[] = []
@@ -1323,23 +1322,18 @@ class Uivisor {
     }
     const side = (css: string, pos: string) =>
       `<input class="uiv-bm-i ${pos}${this.controlStateClass([css])}" data-css="${css}" value="${escapeAttr(num(css))}" title="${css}" inputmode="decimal" spellcheck="false">`
-    // Spacing design tokens (if the project exposes any) → a per-side token picker,
-    // behind a discreet grip handle in the corner (not a banner at the top).
+    // Spacing design tokens (if the project exposes any) → clicking ANY side value
+    // opens this dropdown of tokens for that side (hidden until a field is focused).
     const spaceTokens = this.designSystem().byCategory['spacing'] ?? []
-    const tokBtn = spaceTokens.length
-      ? `<button class="uiv-bm-tok${this.bmTokenOpen ? ' on' : ''}" title="Spacing tokens for the focused field">${ICONS.grip}</button>`
+    const pop = spaceTokens.length
+      ? `<div class="uiv-bm-pop" hidden><span class="uiv-bm-poplabel">Token</span>` +
+        spaceTokens
+          .map((t) => `<button class="uiv-bm-chip" data-var="${escapeAttr(t.cssVar)}" title="${escapeAttr(t.value)}">${escapeHtml(t.name)} · ${escapeHtml(t.value)}</button>`)
+          .join('') +
+        `</div>`
       : ''
-    const chips =
-      this.bmTokenOpen && spaceTokens.length
-        ? `<div class="uiv-bm-chips">` +
-          `<span class="uiv-bphint" style="width:100%">Token → <b>${escapeHtml(this.lastBmSide)}</b>:</span>` +
-          spaceTokens
-            .map((t) => `<button class="uiv-bm-chip" data-var="${escapeAttr(t.cssVar)}" title="${escapeAttr(t.value)}">${escapeHtml(t.name)} · ${escapeHtml(t.value)}</button>`)
-            .join('') +
-          `</div>`
-        : ''
     return (
-      `<div class="uiv-bm">${tokBtn}` +
+      `<div class="uiv-bm">` +
       `<span class="uiv-bm-tag">MARGIN</span>` +
       side('margin-top', 'bm-top') +
       side('margin-right', 'bm-right') +
@@ -1351,7 +1345,7 @@ class Uivisor {
       side('padding-bottom', 'bm-bottom') +
       side('padding-left', 'bm-left') +
       `<div class="uiv-bm-content"></div></div></div>` +
-      chips
+      pop
     )
   }
 
@@ -1888,11 +1882,23 @@ class Uivisor {
         this.commitValue([prop], val)
       })
     })
+    const bmPop = root.querySelector('.uiv-bm-pop') as HTMLElement | null
+    const bmPopLabel = bmPop?.querySelector('.uiv-bm-poplabel') as HTMLElement | null
     root.querySelectorAll('.uiv-bm-i').forEach((node) => {
       const inp = node as HTMLInputElement
       const css = inp.getAttribute('data-css')!
+      // Clicking/focusing a value opens the spacing-token dropdown for THAT side.
       inp.addEventListener('focus', () => {
         this.lastBmSide = css
+        if (bmPop) {
+          bmPop.hidden = false
+          if (bmPopLabel) bmPopLabel.textContent = `${css} →`
+        }
+      })
+      inp.addEventListener('blur', () => {
+        window.setTimeout(() => {
+          if (bmPop) bmPop.hidden = true
+        }, 140)
       })
       inp.addEventListener('change', () => {
         this.pushHistory()
@@ -1933,20 +1939,14 @@ class Uivisor {
         window.addEventListener('pointerup', up)
       })
     })
-    const tokBtn = root.querySelector('.uiv-bm-tok') as HTMLElement | null
-    if (tokBtn)
-      tokBtn.addEventListener('click', () => {
-        this.bmTokenOpen = !this.bmTokenOpen
-        this.renderBody()
-      })
     root.querySelectorAll('.uiv-bm-chip').forEach((node) => {
       const btn = node as HTMLElement
       const cssVar = btn.getAttribute('data-var')!
-      btn.addEventListener('click', () => {
+      // mousedown (not click) so it fires BEFORE the input's blur hides the dropdown.
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault()
         const token = this.designSystem().tokens.find((t) => t.cssVar === cssVar)
         if (token) this.applyToken(this.lastBmSide, token)
-        this.bmTokenOpen = false
-        this.renderBody()
       })
     })
     root.querySelectorAll('.uiv-num:not(.uiv-dim)').forEach((node) => {

@@ -298,16 +298,16 @@ export const CSS = /* css */ `
 .uiv-bm-i.st-edited { color: #4ade80; }
 .uiv-bm-i.st-inherit { color: #38bdf8; }
 .uiv-bm-i.st-auto { color: #6b7280; }
-/* spacing-token affordance (grip handle, top-right) + chips */
-.uiv-bm-tok { position: absolute; z-index: 4; top: 4px; right: 5px; display: flex;
-  align-items: center; justify-content: center; width: 18px; height: 16px; padding: 0;
-  background: transparent; border: 0; color: #6b6b73; cursor: pointer; border-radius: 4px; }
-.uiv-bm-tok:hover { color: #c7d2fe; background: rgba(255,255,255,0.06); }
-.uiv-bm-tok.on { color: #a5b4fc; background: #312e81; }
-.uiv-bm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: -4px 0 8px; }
+/* spacing-token dropdown — opens when a side value is focused/clicked */
+.uiv-bm-pop { display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+  margin: -3px 0 8px; padding: 8px; background: #1c1c20; border: 1px solid #34343c;
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.uiv-bm-pop[hidden] { display: none; }
+.uiv-bm-poplabel { width: 100%; font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .4px; color: #6b6b73; font-family: ui-monospace, monospace; }
 .uiv-bm-chip { background: #1e1b4b55; border: 1px solid #4338ca; color: #c7d2fe; border-radius: 6px;
-  padding: 3px 7px; font-size: 10px; cursor: pointer; font-family: ui-monospace, monospace; }
-.uiv-bm-chip:hover { background: #312e81; color: #fff; }
+  padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: ui-monospace, monospace; }
+.uiv-bm-chip:hover { background: #4f46e5; border-color: #6366f1; color: #fff; }
 
 /* ---- All CSS inspector (search + categories + generic smart inputs) ---- */
 .uiv-csssearch { width: 100%; background: #0f0f12; border: 1px solid #3f3f46; color: #e4e4e7;
