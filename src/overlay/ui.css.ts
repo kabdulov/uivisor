@@ -59,24 +59,34 @@ export const CSS = /* css */ `
 
 .uiv-panel {
   position: fixed; right: 16px; bottom: 72px; z-index: 2147483647;
-  width: 328px; max-height: 80vh; overflow: auto;
-  background: #18181b; color: #e4e4e7; border: 1px solid #3f3f46;
-  border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  width: 360px; max-height: 84vh; overflow: auto;
+  background: #141416; color: #e4e4e7; border: 1px solid #2a2a2e;
+  border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.5);
   font-size: 12px; display: none;
 }
 .uiv-panel.show { display: block; }
 
 .uiv-head {
-  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
-  border-bottom: 1px solid #27272a; position: sticky; top: 0; background: #18181b;
+  display: flex; align-items: center; gap: 8px; padding: 11px 13px;
+  border-bottom: 1px solid #242428; position: sticky; top: 0; z-index: 5; background: #141416;
 }
-.uiv-head b { font-size: 13px; color: #fff; letter-spacing: .3px; }
-.uiv-bp { margin-left: auto; font-size: 10px; padding: 2px 7px; border-radius: 999px;
+.uiv-head b { font-size: 13px; color: #fafafa; letter-spacing: .2px; }
+.uiv-bp { margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 999px;
   background: #312e81; color: #c7d2fe; font-weight: 600; }
 .uiv-x { cursor: pointer; color: #71717a; padding: 2px 4px; }
 .uiv-x:hover { color: #fff; }
 
-.uiv-sec { padding: 10px 12px; border-bottom: 1px solid #27272a; }
+.uiv-sec { padding: 11px 13px; border-bottom: 1px solid #1f1f22; }
+
+/* ---- Framer-style top alignment toolbar ---- */
+.uiv-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 13px;
+  border-bottom: 1px solid #1f1f22; }
+.uiv-tgroup { display: flex; gap: 2px; }
+.uiv-tbtn { display: flex; align-items: center; justify-content: center; width: 26px; height: 22px;
+  border-radius: 5px; background: transparent; border: 1px solid transparent; color: #8b8b94; cursor: pointer; }
+.uiv-tbtn:hover { background: #1f1f23; color: #e4e4e7; }
+.uiv-tbtn.on { background: #312e81; border-color: #4f46e5; color: #fff; }
+.uiv-tsep { width: 1px; height: 16px; background: #2a2a2e; }
 .uiv-empty { color: #71717a; padding: 18px 12px; text-align: center; }
 
 .uiv-meta { line-height: 1.5; }
@@ -188,8 +198,8 @@ export const CSS = /* css */ `
 .uiv-ctl > .cfield { min-width: 0; }
 
 /* numeric field with a scrub handle on the left */
-.uiv-num { display: flex; align-items: stretch; background: #27272a;
-  border: 1px solid #3f3f46; border-radius: 7px; overflow: hidden; }
+.uiv-num { display: flex; align-items: stretch; background: #1c1c20;
+  border: 1px solid #313138; border-radius: 7px; overflow: hidden; }
 .uiv-num.changed { border-color: #4ade80; }
 .uiv-num.changed input { color: #4ade80; } /* uivisor-edited value → green */
 .uiv-sel.changed, .uiv-color.changed { border-color: #4ade80; }
@@ -214,7 +224,7 @@ export const CSS = /* css */ `
 
 .uiv-expand { display: flex; align-items: center; justify-content: center;
   width: 26px; height: 28px; border-radius: 7px; cursor: pointer;
-  background: #27272a; border: 1px solid #3f3f46; color: #8b8b94; }
+  background: #1c1c20; border: 1px solid #313138; color: #8b8b94; }
 .uiv-expand:hover { color: #fff; background: #3f3f46; }
 .uiv-expand.on { color: #c7d2fe; border-color: #4f46e5; background: #312e81; }
 
@@ -223,13 +233,13 @@ export const CSS = /* css */ `
 
 /* Weight dropdown only — must NOT match the unit <select> inside dim fields. */
 .uiv-ctl select.uiv-sel {
-  width: 100%; background: #27272a; border: 1px solid #3f3f46; color: #fff;
+  width: 100%; background: #1c1c20; border: 1px solid #313138; color: #fff;
   border-radius: 7px; padding: 6px 7px; font-size: 12px; outline: none;
 }
 .uiv-ctl select.uiv-sel:focus { border-color: #6366f1; }
 .uiv-ctl input[type=color] { width: 100%; height: 28px; padding: 2px; cursor: pointer;
-  background: #27272a; border: 1px solid #3f3f46; border-radius: 7px; }
-.uiv-ctl input.uiv-text { width: 100%; background: #27272a; border: 1px solid #3f3f46;
+  background: #1c1c20; border: 1px solid #313138; border-radius: 7px; }
+.uiv-ctl input.uiv-text { width: 100%; background: #1c1c20; border: 1px solid #313138;
   color: #fff; border-radius: 7px; padding: 6px 7px; font-size: 12px; outline: none; }
 .uiv-ctl input.uiv-text:focus { border-color: #6366f1; }
 .uiv-ctl input.uiv-text.changed { border-color: #4ade80; color: #4ade80; }
@@ -253,7 +263,7 @@ export const CSS = /* css */ `
 .uiv-btn.primary:hover { background: #4338ca; }
 .uiv-btn.ghost { flex: 0 0 auto; }
 /* floating read-only "all styles" block, docked bottom-right, left of the panel */
-.uiv-info { position: fixed; right: 352px; bottom: 16px; z-index: 2147483646;
+.uiv-info { position: fixed; right: 384px; bottom: 16px; z-index: 2147483646;
   width: 216px; max-height: 52vh; overflow: auto; display: none;
   background: rgba(24,24,27,0.86); color: #e4e4e7;
   border: 1px solid #3f3f46; border-radius: 10px; padding: 8px 10px;
@@ -262,6 +272,76 @@ export const CSS = /* css */ `
 .uiv-info-h { font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
   color: #8b8b94; font-weight: 600; margin-bottom: 6px; }
 .uiv-info-sub { color: #52525b; }
+/* ---- box-model widget (nested margin / padding, Figma/Framer style) ----
+   Bands are sized so the side inputs NEVER overlap the inner content box:
+   vertical band 26px (> input 18px), horizontal band 46px (> input 36px). */
+.uiv-bm { position: relative; height: 148px; margin: 2px 0 9px;
+  background: #1b1b1f; border: 1px solid #2f2f35; border-radius: 9px; }
+.uiv-bm-pad { position: absolute; top: 26px; bottom: 26px; left: 46px; right: 46px;
+  background: #26262c; border: 1px solid #3a3a42; border-radius: 7px; }
+.uiv-bm-content { position: absolute; z-index: 0; top: 26px; bottom: 26px; left: 46px; right: 46px;
+  background: #34343c; border-radius: 5px; }
+.uiv-bm-tag { position: absolute; z-index: 1; top: 4px; left: 8px; font-size: 7.5px; font-weight: 700;
+  letter-spacing: .5px; color: #6b6b73; pointer-events: none; }
+.uiv-bm-i { position: absolute; z-index: 3; width: 36px; height: 18px; padding: 0; box-sizing: border-box;
+  background: #0e0e11; border: 1px solid #34343c; border-radius: 5px;
+  color: #d4d4d8; text-align: center; text-align-last: center; line-height: 16px; font-size: 10px;
+  outline: none; cursor: ew-resize; font-family: ui-monospace, monospace; -moz-appearance: textfield; }
+.uiv-bm-i::-webkit-outer-spin-button, .uiv-bm-i::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.uiv-bm-i:hover { border-color: #52525b; }
+.uiv-bm-i:focus { cursor: text; border-color: #6366f1; }
+.uiv-bm-i.bm-top { top: 4px; left: 50%; transform: translateX(-50%); }
+.uiv-bm-i.bm-bottom { bottom: 4px; left: 50%; transform: translateX(-50%); }
+.uiv-bm-i.bm-left { left: 5px; top: 50%; transform: translateY(-50%); }
+.uiv-bm-i.bm-right { right: 5px; top: 50%; transform: translateY(-50%); }
+.uiv-bm-i.st-file { color: #e4e4e7; }
+.uiv-bm-i.st-edited { color: #4ade80; }
+.uiv-bm-i.st-inherit { color: #38bdf8; }
+.uiv-bm-i.st-auto { color: #6b7280; }
+/* spacing-token dropdown — opens when a side value is focused/clicked */
+.uiv-bm-pop { display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+  margin: -3px 0 8px; padding: 8px; background: #1c1c20; border: 1px solid #34343c;
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.uiv-bm-pop[hidden] { display: none; }
+.uiv-bm-poplabel { width: 100%; font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .4px; color: #6b6b73; font-family: ui-monospace, monospace; }
+.uiv-bm-chip { background: #1e1b4b55; border: 1px solid #4338ca; color: #c7d2fe; border-radius: 6px;
+  padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: ui-monospace, monospace; }
+.uiv-bm-chip:hover { background: #4f46e5; border-color: #6366f1; color: #fff; }
+
+/* ---- All CSS inspector (search + categories + generic smart inputs) ---- */
+.uiv-csssearch { width: 100%; background: #0f0f12; border: 1px solid #3f3f46; color: #e4e4e7;
+  border-radius: 7px; padding: 7px 9px; font-size: 12px; outline: none; font-family: ui-monospace, monospace; }
+.uiv-csssearch:focus { border-color: #6366f1; }
+.uiv-csssearch::placeholder { color: #6b6b73; }
+.uiv-catacc .uiv-catn { color: #52525b; font-weight: 700; margin-left: auto; }
+.uiv-showall { background: none; border: 0; color: #818cf8; cursor: pointer;
+  font-size: 10px; padding: 2px 0 4px; font-weight: 600; }
+.uiv-showall:hover { color: #a5b4fc; }
+.uiv-gctl { grid-template-columns: 108px 1fr; gap: 8px; margin-bottom: 5px; }
+.uiv-gplabel { font-family: ui-monospace, monospace; font-size: 10px; color: #a1a1aa;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uiv-gsel { width: 100%; background: #1c1c20; border: 1px solid #313138; color: #fff;
+  border-radius: 7px; padding: 5px 6px; font-size: 11px; outline: none; font-family: ui-monospace, monospace; }
+.uiv-gsel:focus { border-color: #6366f1; }
+.uiv-gnum { display: flex; align-items: stretch; background: #1c1c20; border: 1px solid #313138;
+  border-radius: 7px; overflow: hidden; }
+.uiv-gnum:focus-within { border-color: #6366f1; }
+.uiv-gtext { flex: 1; min-width: 0; background: #1c1c20; border: 1px solid #313138; color: #fff;
+  border-radius: 7px; padding: 5px 7px; font-size: 11px; outline: none; font-family: ui-monospace, monospace; }
+.uiv-gnum .uiv-gtext { border: none; border-radius: 0; background: transparent; padding-left: 2px; }
+.uiv-gtext:focus { border-color: #6366f1; }
+.uiv-gtext::placeholder { color: #6b6b73; }
+.uiv-gcolorwrap { display: flex; gap: 5px; align-items: center; }
+.uiv-gcolor { width: 28px; height: 26px; padding: 2px; flex: 0 0 auto; background: #1c1c20;
+  border: 1px solid #313138; border-radius: 7px; cursor: pointer; }
+.uiv-gtextc { flex: 1; }
+.uiv-gctl.st-file .uiv-gtext, .uiv-gctl.st-file .uiv-gsel { color: #e4e4e7; }
+.uiv-gctl.st-edited .uiv-gtext, .uiv-gctl.st-edited .uiv-gsel { color: #4ade80; }
+.uiv-gctl.st-edited .uiv-gnum, .uiv-gctl.st-edited .uiv-gsel { border-color: #4ade80; }
+.uiv-gctl.st-inherit .uiv-gtext, .uiv-gctl.st-inherit .uiv-gsel { color: #38bdf8; }
+.uiv-gctl.st-auto .uiv-gtext, .uiv-gctl.st-auto .uiv-gsel { color: #6b7280; }
+
 .uiv-toast { position: fixed; right: 16px; bottom: 128px; z-index: 2147483647;
   background: #22c55e; color: #052e16; padding: 8px 12px; border-radius: 8px;
   font-size: 12px; font-weight: 600; display: none; }

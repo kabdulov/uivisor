@@ -170,8 +170,13 @@ export function renderPrompt(records: EditRecord[]): string {
         }
         if (c.after.designToken || (c.after.token && /^(text|bg|border|rounded|shadow)-(?!\[)/.test(c.after.token)))
           anyDesignToken = true
+        // Some properties (shorthands, ones outside the snapshot) have no known
+        // "before" — show just the target rather than "prop:  → value".
+        const from = (c.before.computed ?? '').trim()
         lines.push(
-          `    - ${c.property}: ${c.before.computed} → ${c.after.computed}${suggestion}`,
+          from
+            ? `    - ${c.property}: ${from} → ${c.after.computed}${suggestion}`
+            : `    - ${c.property}: set to ${c.after.computed}${suggestion}`,
         )
       }
     }

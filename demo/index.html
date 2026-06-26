@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>uivisor demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- A realistic design-system token set so uivisor's token pickers (spacing,
+         colour, radius, font-size) have something to detect in the demo. -->
+    <style>
+      :root {
+        --space-xs: 4px;  --space-sm: 8px;  --space-md: 16px;
+        --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
+        --radius-sm: 6px; --radius-md: 12px; --radius-lg: 20px; --radius-full: 9999px;
+        --color-primary: #4f46e5; --color-secondary: #7c3aed; --color-accent: #06b6d4;
+        --color-ink: #18181b; --color-muted: #71717a; --color-surface: #f4f4f5;
+        --fs-body: 14px; --fs-title: 20px; --fs-heading: 28px; --fs-display: 40px;
+        --shadow-sm: 0 1px 3px rgba(0,0,0,.08); --shadow-md: 0 4px 12px rgba(0,0,0,.1);
+      }
+    </style>
   </head>
   <body class="bg-zinc-100">
     <div id="root"></div>

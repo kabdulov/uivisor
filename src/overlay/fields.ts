@@ -93,6 +93,7 @@ export const ICONS = {
   desktop: sv('<rect x="1.8" y="2.8" width="12.4" height="8" rx="1"/><path d="M5.8 14h4.4 M8 10.8v3.2"/>'),
   live: sv('<circle cx="8" cy="8" r="2"/><path d="M4.6 4.6a4.8 4.8 0 0 0 0 6.8 M11.4 4.6a4.8 4.8 0 0 1 0 6.8"/>'),
   all: sv('<path d="M8 2.5v11 M3.2 5.2l9.6 5.6 M12.8 5.2l-9.6 5.6"/>'),
+  grip: '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="6" cy="4" r="1.05"/><circle cx="6" cy="8" r="1.05"/><circle cx="6" cy="12" r="1.05"/><circle cx="10" cy="4" r="1.05"/><circle cx="10" cy="8" r="1.05"/><circle cx="10" cy="12" r="1.05"/></svg>',
 }
 
 export const SECTIONS: Section[] = [
