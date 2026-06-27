@@ -1492,10 +1492,30 @@ class Uivisor {
     return px // px
   }
 
+  /** A dim value's own number + unit ('' = unitless, e.g. line-height: 1.5). */
+  private parseDim(v: string): { num: number; unit: string } | null {
+    const m = /^(-?\d*\.?\d+)(px|em|rem|%)?$/.exec(v.trim())
+    return m ? { num: parseFloat(m[1]), unit: m[2] ?? '' } : null
+  }
+
   private dimDisplay(c: DimControl): { num: string; unit: string; placeholder: string } {
     const st = this.st()!
-    const computed = this.liveVal(c.css)
-    const unit = st.dimUnit[c.css] ?? c.defaultUnit
+    const computed = this.liveVal(c.css).trim()
+    const native = this.parseDim(computed)
+    const picked = st.dimUnit[c.css] // a unit the user explicitly chose via the selector
+    // Honour an explicit unit pick (convert through px). Otherwise show the value in
+    // its OWN unit, so %, em, rem and unitless survive inheritance across breakpoints
+    // instead of being forced to px/em (letter-spacing in em stays em, line-height in
+    // % stays %, …).
+    if (picked != null) {
+      const px = this.currentPx(c.css)
+      if (px != null) return { num: String(round2(this.pxToUnit(px, picked))), unit: picked, placeholder: computed || '—' }
+    }
+    if (native && c.units.includes(native.unit)) {
+      return { num: String(round2(native.num)), unit: native.unit, placeholder: computed || '—' }
+    }
+    // Fallback: auto/normal, or a unit this control doesn't offer → convert to default.
+    const unit = picked ?? c.defaultUnit
     const px = this.currentPx(c.css)
     if (px == null) return { num: '', unit, placeholder: computed || 'normal' }
     return { num: String(round2(this.pxToUnit(px, unit))), unit, placeholder: computed || '—' }
