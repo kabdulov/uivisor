@@ -71,7 +71,10 @@ export const CSS = /* css */ `
   border-bottom: 1px solid #242428; position: sticky; top: 0; z-index: 5; background: #141416;
 }
 .uiv-head b { font-size: 13px; color: #fafafa; letter-spacing: .2px; }
-.uiv-bp { margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 999px;
+.uiv-lang { margin-left: auto; cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  padding: 2px 7px; border-radius: 6px; background: #1c1c20; border: 1px solid #313138; color: #a1a1aa; }
+.uiv-lang:hover { color: #fff; border-color: #4f46e5; background: #26262c; }
+.uiv-bp { font-size: 10px; padding: 2px 8px; border-radius: 999px;
   background: #312e81; color: #c7d2fe; font-weight: 600; }
 .uiv-x { cursor: pointer; color: #71717a; padding: 2px 4px; }
 .uiv-x:hover { color: #fff; }
@@ -108,14 +111,20 @@ export const CSS = /* css */ `
 .uiv-chip.on, .uiv-clschip.on { background: #4f46e5; border-color: #6366f1; color: #fff; }
 .uiv-bphint { margin-top: 7px; font-size: 10px; color: #71717a; line-height: 1.4; }
 .uiv-bphint b { color: #c7d2fe; }
+/* "Apply changes to" dropdown (sits outside .uiv-ctl, so style it directly) */
+.uiv-targetsel { width: 100%; box-sizing: border-box; cursor: pointer;
+  background: #1c1c20; border: 1px solid #313138; color: #fff;
+  border-radius: 7px; padding: 7px 9px; font-size: 12px; outline: none; }
+.uiv-targetsel:hover { border-color: #45454d; }
+.uiv-targetsel:focus { border-color: #6366f1; }
 .uiv-newclass {
-  border: 1px dashed #52525b; background: transparent; color: #a1a1aa;
-  border-radius: 6px; padding: 3px 8px; font-size: 11px; width: 104px; outline: none;
+  margin-top: 7px; box-sizing: border-box; width: 100%;
+  border: 1px dashed #52525b; background: transparent; color: #e4e4e7;
+  border-radius: 7px; padding: 6px 9px; font-size: 12px; outline: none;
   font-family: ui-monospace, monospace;
 }
 .uiv-newclass::placeholder { color: #71717a; }
 .uiv-newclass:focus { border-style: solid; border-color: #6366f1; color: #fff; }
-.uiv-newclass.on { border-style: solid; border-color: #22d3ee; color: #fff; }
 
 /* ---- design-system indicator + token pickers ---- */
 .uiv-dsbar { padding: 7px 12px; border-bottom: 1px solid #27272a;
@@ -189,8 +198,9 @@ export const CSS = /* css */ `
 .uiv-acc:hover .uiv-chev { color: #818cf8; }
 .uiv-acc:not(.collapsed) .uiv-chev { transform: rotate(90deg); }
 
-.uiv-ctl { display: grid; grid-template-columns: 70px 1fr 26px; gap: 8px;
+.uiv-ctl { display: grid; grid-template-columns: 84px 1fr 26px; gap: 8px;
   align-items: center; margin-bottom: 7px; }
+.uiv-ctl > .clabel { overflow: hidden; text-overflow: ellipsis; }
 .uiv-ctl:last-child { margin-bottom: 0; }
 .uiv-ctl > .clabel { font-size: 11px; color: #a1a1aa; }
 .uiv-ctl > .cfield { min-width: 0; }

@@ -30,6 +30,7 @@ import {
   nearestToken,
 } from './designtokens.js'
 import { detectMechanism } from './mechanism.js'
+import { type Lang, getLang, setLang, t } from './i18n.js'
 import { collapseChanges, renderPrompt, renderSpec } from './prompt.js'
 import { getIdentity } from './source.js'
 import { rgbToHex } from './tokens.js'
@@ -167,32 +168,33 @@ class Uivisor {
     this.root.innerHTML = `
       <style>${CSS}</style>
       <div class="uiv-framewrap">
-        <div class="uiv-framebar"><div class="uiv-framechips uiv-chips"></div><span class="uiv-framew">768px</span><span class="uiv-framex" title="Turn uivisor off (Alt+U)">✕</span></div>
+        <div class="uiv-framebar"><div class="uiv-framechips uiv-chips"></div><span class="uiv-framew">768px</span><span class="uiv-framex" title="${escapeAttr(t('Turn uivisor off (Alt+U)'))}">✕</span></div>
         <div class="uiv-framestage">
           <div class="uiv-framehost">
             <iframe class="uiv-frame" data-uiv-frame="1"></iframe>
-            <div class="uiv-framehandle" title="Drag to resize"></div>
+            <div class="uiv-framehandle" title="${escapeAttr(t('Drag to resize'))}"></div>
           </div>
         </div>
       </div>
       <div class="uiv-box hover"></div>
       <div class="uiv-box sel"></div>
       <div class="uiv-tag"></div>
-      <div class="uiv-fab" title="Toggle uivisor (Alt+U)">◎</div>
+      <div class="uiv-fab" title="${escapeAttr(t('Toggle uivisor (Alt+U)'))}">◎</div>
       <div class="uiv-info"></div>
       <div class="uiv-toast"></div>
       <div class="uiv-panel">
         <div class="uiv-head">
           <b>uivisor</b>
+          <button class="uiv-lang" title="Language / Язык">${getLang().toUpperCase()}</button>
           <span class="uiv-bp">base</span>
-          <span class="uiv-x" title="Close">✕</span>
+          <span class="uiv-x" title="${escapeAttr(t('Close'))}">✕</span>
         </div>
         <div class="uiv-body"></div>
         <div class="uiv-foot">
-          <button class="uiv-btn primary copy-prompt">Copy prompt for agent</button>
-          <button class="uiv-btn copy-json">Copy JSON</button>
-          <button class="uiv-btn ghost reset" title="Revert tweaks on selected element">Reset</button>
-          <button class="uiv-btn ghost clear" title="Clear all">Clear</button>
+          <button class="uiv-btn primary copy-prompt">${t('Copy prompt for agent')}</button>
+          <button class="uiv-btn copy-json">${t('Copy JSON')}</button>
+          <button class="uiv-btn ghost reset" title="${escapeAttr(t('Revert tweaks on selected element'))}">${t('Reset')}</button>
+          <button class="uiv-btn ghost clear" title="${escapeAttr(t('Clear all'))}">${t('Clear')}</button>
         </div>
       </div>
     `
@@ -210,6 +212,7 @@ class Uivisor {
 
     this.fab.addEventListener('click', () => this.toggle())
     this.q('.uiv-x').addEventListener('click', () => this.toggle(false))
+    this.q('.uiv-lang').addEventListener('click', () => this.setLanguage(getLang() === 'ru' ? 'en' : 'ru'))
     this.q('.uiv-framex').addEventListener('click', () => this.toggle(false)) // ✕ turns uivisor off
     this.q('.copy-prompt').addEventListener('click', () => this.copyPrompt())
     this.q('.copy-json').addEventListener('click', () => this.copyJSON())
@@ -259,6 +262,30 @@ class Uivisor {
 
   private isOurs(e: Event): boolean {
     return e.composedPath().includes(this.host)
+  }
+
+  /** Switch the UI language: persist it, refresh the static chrome built once in
+   *  mount() (buttons, titles, the toggle label) and re-render the live panel. */
+  private setLanguage(next: Lang): void {
+    setLang(next)
+    this.q('.uiv-lang').textContent = next.toUpperCase()
+    this.q('.uiv-x').setAttribute('title', t('Close'))
+    this.q('.uiv-framex').setAttribute('title', t('Turn uivisor off (Alt+U)'))
+    this.q('.uiv-framehandle').setAttribute('title', t('Drag to resize'))
+    this.fab.setAttribute('title', t('Toggle uivisor (Alt+U)'))
+    this.q('.copy-prompt').textContent = t('Copy prompt for agent')
+    this.q('.copy-json').textContent = t('Copy JSON')
+    const reset = this.q('.reset')
+    reset.textContent = t('Reset')
+    reset.setAttribute('title', t('Revert tweaks on selected element'))
+    const clear = this.q('.clear')
+    clear.textContent = t('Clear')
+    clear.setAttribute('title', t('Clear all'))
+    this.renderBody()
+    if (this.responsive) {
+      this.renderFrameBar()
+      this.setFrameWidth(this.frameWidth) // refresh the "…px · editing all" readout
+    }
   }
 
   // ---- enable / disable ----
@@ -422,7 +449,7 @@ class Uivisor {
     host.style.width = `${this.frameWidth}px`
     // The readout shows the canvas WIDTH plus which breakpoint your edits scope to
     // (the picked scope, not the frame's pixel-breakpoint — those can differ).
-    this.q('.uiv-framew').textContent = `${this.frameWidth}px · editing ${this.bpLabel(this.scopeName())}`
+    this.q('.uiv-framew').textContent = `${this.frameWidth}px · ${t('editing')} ${this.bpLabel(this.scopeName())}`
     this.updateBp()
     this.reposition()
   }
@@ -913,8 +940,8 @@ class Uivisor {
     if (!this.selected) {
       body.innerHTML = `
         ${this.breakpointBarHtml()}
-        <div class="uiv-empty">Click any element ${this.responsive ? 'in the frame' : 'on the page'} to select it.</div>
-        <div class="uiv-hint">Alt+U toggles · Esc deselects · ⌘/Ctrl+Z undo, ⇧ to redo. Tweaks stay in the browser — nothing is written to your code.</div>
+        <div class="uiv-empty">${t(this.responsive ? 'Click any element in the frame to select it.' : 'Click any element on the page to select it.')}</div>
+        <div class="uiv-hint">${t('Alt+U toggles · Esc deselects · ⌘/Ctrl+Z undo, ⇧ to redo. Tweaks stay in the browser — nothing is written to your code.')}</div>
         ${this.journalHtml()}
       `
       if (this.responsive) this.renderFrameBar()
@@ -957,7 +984,7 @@ class Uivisor {
     const cats = (Object.keys(ds.byCategory) as TokenCategory[])
       .map((c) => `${ds.byCategory[c]!.length} ${c}`)
       .join(' · ')
-    return `<div class="uiv-dsbar" title="${escapeAttr(cats)}">◆ Design system · ${ds.tokens.length} tokens detected</div>`
+    return `<div class="uiv-dsbar" title="${escapeAttr(cats)}">◆ ${t('Design system')} · ${ds.tokens.length} ${t('tokens detected')}</div>`
   }
 
   /** Longhand properties an authoring rule (or non-uivisor inline) sets on `el`.
@@ -1037,7 +1064,7 @@ class Uivisor {
     const badge = from
       ? ` <span class="uiv-inh" title="inherited from ${escapeAttr(this.bpLabel(from))} — not set at this breakpoint">⤣${escapeHtml(this.bpLabel(from))}</span>`
       : ''
-    return `<span class="clabel">${label}${badge}</span>`
+    return `<span class="clabel">${escapeHtml(t(label))}${badge}</span>`
   }
 
   /** Is any of `props` authored in the project CSS? For inherited properties we
@@ -1201,7 +1228,7 @@ class Uivisor {
       return
     }
     info.innerHTML =
-      `<div class="uiv-info-h">all styles <span class="uiv-info-sub">computed</span></div>` +
+      `<div class="uiv-info-h">${t('all styles')} <span class="uiv-info-sub">${t('computed')}</span></div>` +
       `<div class="uiv-readout">${this.styleRows()}</div>`
     info.classList.add('show')
   }
@@ -1230,7 +1257,7 @@ class Uivisor {
     const isActive = (n: string) => (this.responsive ? n === this.scopeName() : n === winBp)
     const chip = (n: string, on: boolean, title: string) =>
       `<button class="uiv-chip${on ? ' on' : ''}" data-bp="${n}" title="${escapeAttr(title)}">${this.bpIcon(n)}<span>${this.bpLabel(n)}</span></button>`
-    const all = chip('base', isActive('base'), 'No breakpoint — applies to every size by default')
+    const all = chip('base', isActive('base'), t('No breakpoint — applies to every size by default'))
     const rest = sys.breakpoints
       .map((b) => chip(b.name, isActive(b.name), sys.dir === 'min' ? `≥ ${b.minWidth}px` : `≤ ${b.minWidth}px`))
       .join('')
@@ -1266,13 +1293,21 @@ class Uivisor {
     const isNew = target.startsWith('new:')
     const newName = isNew ? target.slice(4) : ''
     const n = st.record.identity.instanceCount
-    const chip = (val: string, label: string, on: boolean) =>
-      `<button class="uiv-clschip${on ? ' on' : ''}" data-target="${escapeAttr(val)}">${escapeHtml(label)}</button>`
-    const allChip = n > 1 ? chip('all', `All ${n} like this`, target === 'all') : ''
-    const elChip = chip('element', n > 1 ? 'Only this one' : 'This element', target === 'element')
-    const classChips = classes.map((c) => chip(c, `.${c}`, target === c)).join('')
-    const newInput = `<input class="uiv-newclass${isNew ? ' on' : ''}" placeholder="+ new class" value="${escapeAttr(newName)}" title="Create a new class instead of touching the existing ones">`
-    return `<div class="uiv-sec"><div class="uiv-sectitle">Apply changes to</div><div class="uiv-chips">${allChip}${elChip}${classChips}${newInput}</div></div>`
+    const opt = (val: string, label: string) =>
+      `<option value="${escapeAttr(val)}"${target === val ? ' selected' : ''}>${escapeHtml(label)}</option>`
+    const opts =
+      (n > 1 ? opt('all', t('All {n} like this', { n })) : '') +
+      opt('element', n > 1 ? t('Only this one') : t('This element')) +
+      classes.map((c) => opt(c, `.${c}`)).join('') +
+      `<option value="__new__"${isNew ? ' selected' : ''}>${escapeHtml(`＋ ${t('New class…')}`)}</option>`
+    // The "new class" name input only shows when that option is picked.
+    const newInput = isNew
+      ? `<input class="uiv-newclass" placeholder="${escapeAttr(t('new class name'))}" value="${escapeAttr(newName)}" title="${escapeAttr(t('Create a new class instead of touching the existing ones'))}" spellcheck="false">`
+      : ''
+    return (
+      `<div class="uiv-sec"><div class="uiv-sectitle">${t('Apply changes to')}</div>` +
+      `<div class="cfield"><select class="uiv-sel uiv-targetsel">${opts}</select></div>${newInput}</div>`
+    )
   }
 
   /** Decide which controls are relevant to the selected element. */
@@ -1351,9 +1386,9 @@ class Uivisor {
     // opens this dropdown of tokens for that side (hidden until a field is focused).
     const spaceTokens = this.designSystem().byCategory['spacing'] ?? []
     const pop = spaceTokens.length
-      ? `<div class="uiv-bm-pop" hidden><span class="uiv-bm-poplabel">Token</span>` +
+      ? `<div class="uiv-bm-pop" hidden><span class="uiv-bm-poplabel">${t('Token')}</span>` +
         spaceTokens
-          .map((t) => `<button class="uiv-bm-chip" data-var="${escapeAttr(t.cssVar)}" title="${escapeAttr(t.value)}">${escapeHtml(t.name)} · ${escapeHtml(t.value)}</button>`)
+          .map((tok) => `<button class="uiv-bm-chip" data-var="${escapeAttr(tok.cssVar)}" title="${escapeAttr(tok.value)}">${escapeHtml(tok.name)} · ${escapeHtml(tok.value)}</button>`)
           .join('') +
         `</div>`
       : ''
@@ -1376,9 +1411,9 @@ class Uivisor {
 
   private controlsHtml(ctx: ElContext): string {
     const legend =
-      `<div class="uiv-leg"><span class="uiv-lg">file</span>` +
-      `<span class="uiv-lg edit">edited</span><span class="uiv-lg inh">inherited</span>` +
-      `<span class="uiv-lg auto">auto</span></div>`
+      `<div class="uiv-leg"><span class="uiv-lg">${t('file')}</span>` +
+      `<span class="uiv-lg edit">${t('edited')}</span><span class="uiv-lg inh">${t('inherited')}</span>` +
+      `<span class="uiv-lg auto">${t('auto')}</span></div>`
     const secs = SECTIONS.map((sec) => {
       const controls = sec.controls.filter((c) => this.relevant(c, ctx))
       if (!controls.length) return ''
@@ -1401,7 +1436,7 @@ class Uivisor {
           !this.revealedCtls.has(css) &&
           this.controlState([css]) === 'auto'
         ) {
-          adds.push(`<button class="uiv-addctl" data-css="${css}">+ ${escapeHtml(c.label)}</button>`)
+          adds.push(`<button class="uiv-addctl" data-css="${css}">+ ${escapeHtml(t(c.label))}</button>`)
         } else {
           rows.push(this.controlRow(c))
           // Right below the Display dropdown: the visual Justify/Align button-rows
@@ -1420,7 +1455,7 @@ class Uivisor {
     const collapsed = this.collapsedSecs.has(title)
     return (
       `<button class="uiv-sectitle uiv-acc${collapsed ? ' collapsed' : ''}" data-sec="${escapeAttr(title)}">` +
-      `<span class="uiv-chev">${ICONS.chevron}</span>${title}` +
+      `<span class="uiv-chev">${ICONS.chevron}</span>${escapeHtml(t(title))}` +
       `</button>`
     )
   }
@@ -1435,7 +1470,7 @@ class Uivisor {
   ): string {
     return (
       `<div class="uiv-num${changed ? ' changed' : ''}" data-css="${cssAttr}">` +
-      `<span class="uiv-scrub${isSide ? ' txt' : ''}" title="Drag to change">${handle}</span>` +
+      `<span class="uiv-scrub${isSide ? ' txt' : ''}" title="${escapeAttr(t('Drag to change'))}">${handle}</span>` +
       `<input type="number" value="${escapeAttr(value)}" placeholder="${escapeAttr(placeholder)}">` +
       `</div>`
     )
@@ -1537,9 +1572,9 @@ class Uivisor {
     return (
       `<div class="uiv-ctl${this.controlStateClass([c.css])}">${this.ctlLabel(c.label, [c.css])}<div class="cfield">` +
       `<div class="uiv-num uiv-dim${changed ? ' changed' : ''}" data-css="${c.css}">` +
-      `<span class="uiv-scrub" title="Drag to change">${c.icon}</span>` +
+      `<span class="uiv-scrub" title="${escapeAttr(t('Drag to change'))}">${c.icon}</span>` +
       `<input type="number" step="any" value="${escapeAttr(d.num)}" placeholder="${escapeAttr(d.placeholder)}">` +
-      `<select class="uiv-unit" title="Unit">${units}</select>` +
+      `<select class="uiv-unit" title="${escapeAttr(t('Unit'))}">${units}</select>` +
       `</div></div><span></span></div>`
     )
   }
@@ -1563,29 +1598,29 @@ class Uivisor {
     // use a labelled <select>.
     if (cat === 'color') {
       const swatches = list
-        .map((t) => {
-          const on = near?.exact && near.token.cssVar === t.cssVar
+        .map((tok) => {
+          const on = near?.exact && near.token.cssVar === tok.cssVar
           return (
-            `<button class="uiv-swatch${on ? ' on' : ''}" data-css="${css}" data-var="${escapeAttr(t.cssVar)}" ` +
-            `title="${escapeAttr(`${t.name} · ${t.value}`)}" style="background:${escapeAttr(t.value)}"></button>`
+            `<button class="uiv-swatch${on ? ' on' : ''}" data-css="${css}" data-var="${escapeAttr(tok.cssVar)}" ` +
+            `title="${escapeAttr(`${tok.name} · ${tok.value}`)}" style="background:${escapeAttr(tok.value)}"></button>`
           )
         })
         .join('')
       return (
-        `<div class="uiv-ctl"><span class="clabel uiv-tlabel">${label}</span>` +
+        `<div class="uiv-ctl"><span class="clabel uiv-tlabel">${escapeHtml(t(label))}</span>` +
         `<div class="cfield uiv-swatches">${swatches}</div><span></span></div>`
       )
     }
 
-    const head = `<option value="">${near && !near.exact ? `≈ ${escapeHtml(near.token.name)} · pick token` : '— pick token —'}</option>`
+    const head = `<option value="">${near && !near.exact ? `≈ ${escapeHtml(near.token.name)} · ${t('pick token')}` : `— ${t('pick token')} —`}</option>`
     const opts = list
       .map(
-        (t) =>
-          `<option value="${escapeAttr(t.cssVar)}"${near?.exact && near.token.cssVar === t.cssVar ? ' selected' : ''}>${escapeHtml(`${t.name} · ${t.value}`)}</option>`,
+        (tok) =>
+          `<option value="${escapeAttr(tok.cssVar)}"${near?.exact && near.token.cssVar === tok.cssVar ? ' selected' : ''}>${escapeHtml(`${tok.name} · ${tok.value}`)}</option>`,
       )
       .join('')
     return (
-      `<div class="uiv-ctl"><span class="clabel uiv-tlabel">${label}</span>` +
+      `<div class="uiv-ctl"><span class="clabel uiv-tlabel">${escapeHtml(t(label))}</span>` +
       `<div class="cfield"><select class="uiv-sel uiv-tokensel${edited ? ' changed' : ''}" data-css="${css}">${head}${opts}</select></div>` +
       `<span></span></div>`
     )
@@ -1600,8 +1635,8 @@ class Uivisor {
       let html =
         `<div class="uiv-ctl${this.controlStateClass(cssList)}">` +
         this.ctlLabel(c.label, cssList) +
-        `<div class="cfield">${this.numField(cssList.join(','), info.mixed ? '' : info.value, c.icon, changed, false, info.mixed ? 'Mixed' : '—')}</div>` +
-        `<button class="uiv-expand${open ? ' on' : ''}" data-key="${c.key}" title="Edit each side individually">${open ? ICONS.collapse : ICONS.expand}</button>` +
+        `<div class="cfield">${this.numField(cssList.join(','), info.mixed ? '' : info.value, c.icon, changed, false, info.mixed ? t('Mixed') : '—')}</div>` +
+        `<button class="uiv-expand${open ? ' on' : ''}" data-key="${c.key}" title="${escapeAttr(t('Edit each side individually'))}">${open ? ICONS.collapse : ICONS.expand}</button>` +
         `</div>`
       if (open) {
         html +=
@@ -1852,17 +1887,26 @@ class Uivisor {
         this.renderBody()
       })
     })
-    root.querySelectorAll('.uiv-clschip').forEach((node) => {
-      const btn = node as HTMLElement
-      const target = btn.getAttribute('data-target')!
-      btn.addEventListener('click', () => {
+    const targetSel = root.querySelector('.uiv-targetsel') as HTMLSelectElement | null
+    if (targetSel) {
+      targetSel.addEventListener('change', () => {
         const st = this.st()
-        if (st && st.record.target !== target) this.pushHistory()
-        if (st) st.record.target = target
+        if (!st) return
+        // "＋ New class" keeps the existing new-name (or starts empty) and reveals the
+        // name input; everything else targets that element / class directly.
+        const next =
+          targetSel.value === '__new__'
+            ? st.record.target.startsWith('new:')
+              ? st.record.target
+              : 'new:'
+            : targetSel.value
+        if (st.record.target !== next) this.pushHistory()
+        st.record.target = next
         this.reapplyForTarget()
         this.renderBody()
+        if (next === 'new:') (this.root.querySelector('.uiv-newclass') as HTMLInputElement | null)?.focus()
       })
-    })
+    }
     root.querySelectorAll('.uiv-newclass').forEach((node) => {
       const input = node as HTMLInputElement
       input.addEventListener('change', () => {
@@ -2045,14 +2089,14 @@ class Uivisor {
 
   private async copyPrompt(): Promise<void> {
     const recs = this.records()
-    if (!recs.length) return this.showToast('No tweaks recorded yet')
+    if (!recs.length) return this.showToast(t('No tweaks recorded yet'))
     await this.copy(renderPrompt(recs))
-    this.showToast('Prompt copied ✓')
+    this.showToast(t('Prompt copied ✓'))
   }
 
   private async copyJSON(): Promise<void> {
     const recs = this.records()
-    if (!recs.length) return this.showToast('No tweaks recorded yet')
+    if (!recs.length) return this.showToast(t('No tweaks recorded yet'))
     const spec = renderSpec(recs, {
       url: location.href,
       width: window.innerWidth,
@@ -2061,7 +2105,7 @@ class Uivisor {
       now: new Date().toISOString(),
     })
     await this.copy(JSON.stringify(spec, null, 2))
-    this.showToast('JSON copied ✓')
+    this.showToast(t('JSON copied ✓'))
   }
 
   private resetSelected(): void {
@@ -2133,17 +2177,17 @@ class Uivisor {
   }
 
   private undo(): void {
-    if (!this.undoStack.length) return this.showToast('Nothing to undo')
+    if (!this.undoStack.length) return this.showToast(t('Nothing to undo'))
     this.redoStack.push(this.cloneSnap())
     this.applySnap(this.undoStack.pop()!)
-    this.showToast('Undo ↩')
+    this.showToast(t('Undo ↩'))
   }
 
   private redo(): void {
-    if (!this.redoStack.length) return this.showToast('Nothing to redo')
+    if (!this.redoStack.length) return this.showToast(t('Nothing to redo'))
     this.undoStack.push(this.cloneSnap())
     this.applySnap(this.redoStack.pop()!)
-    this.showToast('Redo ↪')
+    this.showToast(t('Redo ↪'))
   }
 
   private async copy(text: string): Promise<void> {
