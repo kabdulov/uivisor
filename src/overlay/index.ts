@@ -29,7 +29,6 @@ import {
   detectDesignSystem,
   nearestToken,
 } from './designtokens.js'
-import { type CssMeta, cssMeta, cssRegistry } from './cssRegistry.js'
 import { detectMechanism } from './mechanism.js'
 import { collapseChanges, renderPrompt, renderSpec } from './prompt.js'
 import { getIdentity } from './source.js'
@@ -63,39 +62,6 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 const INHERITED_PROPS = new Set([
   'font-size', 'font-weight', 'line-height', 'letter-spacing', 'color', 'text-align', 'font-family',
 ])
-/** 4-sided side sets for the box-group editors in the All-CSS area. */
-const BOX_SIDES: Record<string, { css: string; label: string }[]> = {
-  inset: [
-    { css: 'top', label: 'T' },
-    { css: 'right', label: 'R' },
-    { css: 'bottom', label: 'B' },
-    { css: 'left', label: 'L' },
-  ],
-  padding: [
-    { css: 'padding-top', label: 'T' },
-    { css: 'padding-right', label: 'R' },
-    { css: 'padding-bottom', label: 'B' },
-    { css: 'padding-left', label: 'L' },
-  ],
-  margin: [
-    { css: 'margin-top', label: 'T' },
-    { css: 'margin-right', label: 'R' },
-    { css: 'margin-bottom', label: 'B' },
-    { css: 'margin-left', label: 'L' },
-  ],
-  radius: [
-    { css: 'border-top-left-radius', label: 'TL' },
-    { css: 'border-top-right-radius', label: 'TR' },
-    { css: 'border-bottom-right-radius', label: 'BR' },
-    { css: 'border-bottom-left-radius', label: 'BL' },
-  ],
-  'border-width': [
-    { css: 'border-top-width', label: 'T' },
-    { css: 'border-right-width', label: 'R' },
-    { css: 'border-bottom-width', label: 'B' },
-    { css: 'border-left-width', label: 'L' },
-  ],
-}
 
 class Uivisor {
   private host!: HTMLDivElement
@@ -108,10 +74,6 @@ class Uivisor {
   private collapsedSecs = new Set<string>()
   /** Controls manually revealed via "+" (hideWhenAuto controls that are auto). */
   private revealedCtls = new Set<string>()
-  /** "All CSS" search query + which property categories are expanded / showing all. */
-  private cssSearch = ''
-  private expandedCats = new Set<string>()
-  private showAllCats = new Set<string>()
   /** Box-model widget: the last-focused side the token dropdown targets. */
   private lastBmSide = 'padding-top'
   /** Undo / redo stacks of full edit-state snapshots. */
@@ -584,11 +546,9 @@ class Uivisor {
     this.renderBody()
   }
 
-  /** Properties to snapshot on selection: the curated set ∪ the whole registry. */
-  private _snapProps: string[] | null = null
+  /** Properties to snapshot on selection — the curated set the controls can edit. */
   private snapshotProps(): string[] {
-    if (!this._snapProps) this._snapProps = [...new Set([...ALL_CSS, ...cssRegistry().byProp.keys()])]
-    return this._snapProps
+    return ALL_CSS
   }
 
   // ---- value helpers ----
@@ -628,6 +588,15 @@ class Uivisor {
     const inline = el.style.getPropertyValue(css)
     if (inline && !inline.includes('var(')) return inline
     return this.computedVal(css) || st.original[css] || ''
+  }
+
+  /** If a design token is the effective value for `css`, its short name (e.g. "lg"
+   *  for --space-lg) — so the field shows the token by name, not its resolved px. */
+  private tokenNameFor(css: string): string | null {
+    const ch = this.effectiveChange(css)
+    if (!ch?.after.designToken) return null
+    const t = this.designSystem().tokens.find((x) => x.cssVar === ch.after.designToken)
+    return t ? t.name : ch.after.designToken
   }
 
   private liveNum(css: string): number | null {
@@ -956,7 +925,6 @@ class Uivisor {
       ${this.targetHtml(st)}
       ${this.controlsHtml(this.context(this.selected))}
       ${this.journalHtml()}
-      ${this.allCssHtml()}
     `
     if (this.responsive) this.renderFrameBar()
     this.renderInfo()
@@ -1343,8 +1311,14 @@ class Uivisor {
       const n = this.liveNum(css)
       return n == null ? '0' : String(round2(n))
     }
-    const side = (css: string, pos: string) =>
-      `<input class="uiv-bm-i ${pos}${this.controlStateClass([css])}" data-css="${css}" value="${escapeAttr(num(css))}" title="${css}" inputmode="decimal" spellcheck="false">`
+    const side = (css: string, pos: string) => {
+      // When a token is applied, show it BY NAME in the field (Framer-style) instead
+      // of its resolved px — so you can see at a glance which side uses which token.
+      const tok = this.tokenNameFor(css)
+      const val = tok ?? num(css)
+      const title = tok ? `${css}: ${tok}` : css
+      return `<input class="uiv-bm-i ${pos}${this.controlStateClass([css])}${tok ? ' uiv-bm-tok' : ''}" data-css="${css}" value="${escapeAttr(val)}" title="${escapeAttr(title)}" inputmode="decimal" spellcheck="false">`
+    }
     // Spacing design tokens (if the project exposes any) → clicking ANY side value
     // opens this dropdown of tokens for that side (hidden until a field is focused).
     const spaceTokens = this.designSystem().byCategory['spacing'] ?? []
@@ -1642,260 +1616,8 @@ class Uivisor {
     )
   }
 
-  // ---- "All CSS" inspector (registry-driven, curated like Framer/Webflow) ----
-  /** Properties already covered by the curated quick-control sections above — so we
-   *  don't show them again in the All-CSS area. */
-  private _curatedProps: Set<string> | null = null
-  private curatedCssProps(): Set<string> {
-    if (this._curatedProps) return this._curatedProps
-    const set = new Set<string>()
-    for (const sec of SECTIONS)
-      for (const c of sec.controls) {
-        if (c.kind === 'box') c.sides.forEach((s) => set.add(s.css))
-        else set.add((c as { css?: string }).css || '')
-      }
-    set.delete('')
-    this._curatedProps = set
-    return set
-  }
-
-  /**
-   * Search box + categorised accordions. By default each category shows only the
-   * COMMON properties (Framer/Webflow-style — no logical/vendor/rare noise), box
-   * groups as a 4-sided editor; "+ N more" reveals the long tail and search reaches
-   * literally everything. Additive: the curated sections above are untouched.
-   */
-  private allCssHtml(): string {
-    const reg = cssRegistry()
-    const curated = this.curatedCssProps()
-    const q = this.cssSearch.trim().toLowerCase()
-    const search =
-      `<div class="uiv-sec"><div class="uiv-sectitle">All CSS</div>` +
-      `<input class="uiv-csssearch" placeholder="Search any of ${reg.byProp.size} properties…" value="${escapeAttr(this.cssSearch)}" spellcheck="false"></div>`
-    if (q) {
-      const hits = [...reg.byProp.values()].filter((m) => m.property.includes(q)).sort((a, b) => a.property.localeCompare(b.property))
-      const rows = hits.slice(0, 60).map((m) => this.genericRow(m)).join('')
-      const more = hits.length > 60 ? `<div class="uiv-bphint">+${hits.length - 60} more — refine the search</div>` : ''
-      return (
-        search +
-        `<div class="uiv-sec"><div class="uiv-sectitle">Results (${hits.length})</div>` +
-        (rows || '<div class="uiv-empty">No property matches.</div>') +
-        more +
-        `</div>`
-      )
-    }
-    const cats = reg.categories
-      .map((c) => {
-        const avail = c.props.filter((p) => !curated.has(p))
-        if (!avail.length) return ''
-        const common = avail.filter((p) => reg.byProp.get(p)!.common)
-        const open = this.expandedCats.has(c.name)
-        const head =
-          `<button class="uiv-sectitle uiv-catacc${open ? '' : ' collapsed'}" data-cat="${escapeAttr(c.name)}">` +
-          `<span class="uiv-chev">${ICONS.chevron}</span>${c.name} <span class="uiv-catn">${common.length}</span></button>`
-        let body = ''
-        if (open) {
-          const showAll = this.showAllCats.has(c.name)
-          body = this.renderCommonControls(showAll ? avail : common)
-          if (!showAll && avail.length > common.length)
-            body += `<button class="uiv-showall" data-cat="${escapeAttr(c.name)}">+ ${avail.length - common.length} more</button>`
-        }
-        return `<div class="uiv-sec">${head}${body}</div>`
-      })
-      .filter(Boolean)
-      .join('')
-    return search + cats
-  }
-
-  /** Render a property list: box-groups (inset etc.) as a 4-sided editor, the rest
-   *  as smart inputs. Reuses the tested box control + the generic field. */
-  private renderCommonControls(props: string[]): string {
-    const reg = cssRegistry()
-    const boxGroups: Partial<Record<string, true>> = {}
-    const singles: string[] = []
-    for (const p of props) {
-      const m = reg.byProp.get(p)!
-      if (m.box && BOX_SIDES[m.box] && !m.shorthand) boxGroups[m.box] = true
-      else singles.push(p)
-    }
-    let html = ''
-    for (const g of Object.keys(boxGroups)) html += this.boxGroupControl(g)
-    for (const p of singles) html += this.genericRow(reg.byProp.get(p)!)
-    return html
-  }
-
-  /** A 4-sided box editor for a box group (inset/padding/…), via the curated control. */
-  private boxGroupControl(group: string): string {
-    const sides = BOX_SIDES[group]
-    if (!sides) return ''
-    const icon = group === 'radius' ? ICONS.radius : group === 'border-width' ? ICONS.border : group === 'margin' ? ICONS.margin : group === 'inset' ? ICONS.margin : ICONS.padding
-    const label = { inset: 'Inset', padding: 'Padding', margin: 'Margin', radius: 'Radius', 'border-width': 'Border' }[group] || group
-    return this.controlRow({ kind: 'box', key: `g-${group}`, label, icon, sides } as BoxControl)
-  }
-
-  private genericRow(m: CssMeta): string {
-    const prop = m.property
-    return (
-      `<div class="uiv-ctl uiv-gctl${this.controlStateClass([prop])}">` +
-      `<span class="clabel uiv-gplabel" title="${escapeAttr(prop)}">${escapeHtml(prop)}</span>` +
-      `<div class="cfield">${this.genericField(m)}</div></div>`
-    )
-  }
-
-  /** Smart input for one property, by its registry type. Commits via the engine. */
-  private genericField(m: CssMeta): string {
-    const prop = m.property
-    const cur = this.liveVal(prop)
-    const da = `data-gprop="${escapeAttr(prop)}"`
-    if (m.type === 'enum' && m.keywords && m.keywords.length) {
-      const c = cur.trim()
-      const list = c && !m.keywords.includes(c) ? [c, ...m.keywords] : m.keywords
-      const opts = list.map((k) => `<option value="${escapeAttr(k)}"${k === c ? ' selected' : ''}>${escapeHtml(k)}</option>`).join('')
-      return `<select class="uiv-gsel" ${da}>${opts}</select>`
-    }
-    if (m.type === 'color') {
-      return (
-        `<div class="uiv-gcolorwrap"><input type="color" class="uiv-gcolor" ${da} value="${toHexInput(cur)}">` +
-        `<input type="text" class="uiv-gtext uiv-gtextc" ${da} value="${escapeAttr(cur)}" placeholder="—" spellcheck="false"></div>`
-      )
-    }
-    // Shorthands / grid templates: don't pre-fill the COMPUTED value (it's resolved,
-    // e.g. "100px 200px" not "1fr 1fr", and would freeze authored CSS as !important).
-    // Show empty + the computed as a faint placeholder until you actually type — unless
-    // you've already edited it (then show your value).
-    const complex = (m.type === 'shorthand' || m.shorthand || /^grid-template/.test(prop)) && !this.isChanged([prop])
-    const val = complex ? '' : cur
-    const ph = complex && cur ? escapeAttr(cur) : '—'
-    const numeric =
-      m.type === 'length' || m.type === 'number' || m.type === 'integer' || m.type === 'percentage' || m.type === 'time' || m.type === 'angle'
-    if (numeric) {
-      return (
-        `<div class="uiv-gnum"><span class="uiv-scrub uiv-gscrub" ${da} title="Drag to change">${ICONS.size}</span>` +
-        `<input type="text" class="uiv-gtext" ${da} value="${escapeAttr(val)}" placeholder="${ph}" spellcheck="false"></div>`
-      )
-    }
-    return `<input type="text" class="uiv-gtext uiv-gtextonly" ${da} value="${escapeAttr(val)}" placeholder="${ph}" spellcheck="false">`
-  }
-
-  /** Bind the "All CSS" search, category toggles and generic inputs. */
-  private bindGeneric(): void {
-    const root = this.root
-    const search = root.querySelector('.uiv-csssearch') as HTMLInputElement | null
-    if (search) {
-      search.addEventListener('input', () => {
-        const pos = search.selectionStart ?? search.value.length
-        this.cssSearch = search.value
-        this.renderBody()
-        const s2 = this.root.querySelector('.uiv-csssearch') as HTMLInputElement | null
-        if (s2) {
-          s2.focus()
-          s2.setSelectionRange(pos, pos) // keep the caret where the user is typing
-        }
-      })
-    }
-    root.querySelectorAll('.uiv-catacc').forEach((node) => {
-      const btn = node as HTMLElement
-      const cat = btn.getAttribute('data-cat')!
-      btn.addEventListener('click', () => {
-        if (this.expandedCats.has(cat)) this.expandedCats.delete(cat)
-        else this.expandedCats.add(cat)
-        this.renderBody()
-      })
-    })
-    root.querySelectorAll('.uiv-showall').forEach((node) => {
-      const btn = node as HTMLElement
-      const cat = btn.getAttribute('data-cat')!
-      btn.addEventListener('click', () => {
-        this.showAllCats.add(cat)
-        this.renderBody()
-      })
-    })
-    const commit = (prop: string, value: string) => {
-      this.pushHistory()
-      this.commitValue([prop], value, true)
-    }
-    root.querySelectorAll('.uiv-gsel').forEach((node) => {
-      const sel = node as HTMLSelectElement
-      sel.addEventListener('change', () => commit(sel.getAttribute('data-gprop')!, sel.value))
-    })
-    root.querySelectorAll('.uiv-gcolor').forEach((node) => {
-      const inp = node as HTMLInputElement
-      const prop = inp.getAttribute('data-gprop')!
-      inp.addEventListener('change', () => {
-        // The picker shows #000000 for transparent/currentcolor/gradient values; a
-        // no-op close must not paint black. Only commit a genuine change. (For those
-        // values, use the text field — it commits any raw value.)
-        if (inp.value.toLowerCase() === toHexInput(this.liveVal(prop)).toLowerCase()) return
-        commit(prop, inp.value)
-      })
-    })
-    root.querySelectorAll('.uiv-gtext').forEach((node) => {
-      const inp = node as HTMLInputElement
-      inp.addEventListener('change', () => commit(inp.getAttribute('data-gprop')!, inp.value))
-      inp.addEventListener('keydown', (e) => {
-        if ((e as KeyboardEvent).key === 'Enter') inp.blur()
-      })
-    })
-    root.querySelectorAll('.uiv-gscrub').forEach((node) => {
-      const handle = node as HTMLElement
-      const prop = handle.getAttribute('data-gprop')!
-      const input = handle.parentElement!.querySelector('input') as HTMLInputElement
-      this.bindGenericScrub(handle, input, prop)
-    })
-  }
-
-  /** Default unit for a numeric property when the current value carries none —
-   *  from the registry type, so a unitless number never gets a bogus "px". */
-  private defaultUnit(prop: string): string {
-    const t = cssMeta(prop)?.type
-    if (t === 'number' || t === 'integer') return ''
-    if (t === 'time') return 's'
-    if (t === 'angle') return 'deg'
-    if (t === 'percentage') return '%'
-    return 'px' // length & fallback
-  }
-
-  private bindGenericScrub(handle: HTMLElement, input: HTMLInputElement, prop: string): void {
-    handle.addEventListener('pointerdown', (e: PointerEvent) => {
-      e.preventDefault()
-      const startX = e.clientX
-      const m = /^(-?\d*\.?\d+)(\D*)$/.exec(input.value.trim())
-      const start = m ? parseFloat(m[1]) : 0
-      // Keep the value's own unit; only fall back to the registry default when there
-      // is none (so a unitless 0.5 stays unitless, not "1.5px").
-      const unit = m && m[2] ? m[2] : this.defaultUnit(prop)
-      const unitless = unit === ''
-      const step = unitless ? (cssMeta(prop)?.type === 'integer' ? 1 : 0.01) : 1
-      let pushed = false
-      try {
-        handle.setPointerCapture(e.pointerId)
-      } catch {
-        /* noop */
-      }
-      const move = (ev: PointerEvent) => {
-        if (!pushed) {
-          this.pushHistory()
-          pushed = true
-        }
-        let nv = start + Math.round(ev.clientX - startX) * step
-        if (ev.shiftKey) nv = Math.round(nv / (10 * step)) * 10 * step
-        nv = +nv.toFixed(unitless && step < 1 ? 2 : 0)
-        input.value = `${nv}${unit}`
-        this.liveSet([prop], input.value)
-      }
-      const up = () => {
-        handle.removeEventListener('pointermove', move)
-        handle.removeEventListener('pointerup', up)
-        this.recordProps([prop])
-      }
-      handle.addEventListener('pointermove', move)
-      handle.addEventListener('pointerup', up)
-    })
-  }
-
   private bindControls(): void {
     const root = this.root
-    this.bindGeneric()
     root.querySelectorAll('.uiv-tbtn').forEach((node) => {
       const btn = node as HTMLElement
       const prop = btn.getAttribute('data-prop')!
