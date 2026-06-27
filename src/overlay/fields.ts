@@ -106,25 +106,13 @@ export const SECTIONS: Section[] = [
         label: 'Display',
         options: ['block', 'inline-block', 'inline', 'flex', 'inline-flex', 'grid', 'inline-grid', 'none'],
       },
+      // Justify / Align are handled by the bigger visual button-rows injected right
+      // below Display (flexControlsHtml) — not duplicated here as plain selects.
       {
         kind: 'select',
         css: 'flex-direction',
         label: 'Direction',
         options: ['row', 'row-reverse', 'column', 'column-reverse'],
-        requires: 'flexgrid',
-      },
-      {
-        kind: 'select',
-        css: 'justify-content',
-        label: 'Justify',
-        options: ['normal', 'flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'],
-        requires: 'flexgrid',
-      },
-      {
-        kind: 'select',
-        css: 'align-items',
-        label: 'Align',
-        options: ['normal', 'stretch', 'flex-start', 'center', 'flex-end', 'baseline'],
         requires: 'flexgrid',
       },
       {

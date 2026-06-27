@@ -78,15 +78,13 @@ export const CSS = /* css */ `
 
 .uiv-sec { padding: 11px 13px; border-bottom: 1px solid #1f1f22; }
 
-/* ---- Framer-style top alignment toolbar ---- */
-.uiv-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 13px;
-  border-bottom: 1px solid #1f1f22; }
-.uiv-tgroup { display: flex; gap: 2px; }
-.uiv-tbtn { display: flex; align-items: center; justify-content: center; width: 26px; height: 22px;
-  border-radius: 5px; background: transparent; border: 1px solid transparent; color: #8b8b94; cursor: pointer; }
-.uiv-tbtn:hover { background: #1f1f23; color: #e4e4e7; }
-.uiv-tbtn.on { background: #312e81; border-color: #4f46e5; color: #fff; }
-.uiv-tsep { width: 1px; height: 16px; background: #2a2a2e; }
+/* ---- Framer-style flex/grid alignment buttons (Justify / Align rows) ---- */
+.uiv-fbtns { display: flex; gap: 5px; }
+.uiv-fbtn { flex: 1; display: flex; align-items: center; justify-content: center; height: 30px;
+  border-radius: 8px; background: #1c1c20; border: 1px solid #313138; color: #8b8b94;
+  cursor: pointer; transition: background .12s ease, color .12s ease, border-color .12s ease; }
+.uiv-fbtn:hover { background: #26262c; color: #e4e4e7; border-color: #45454d; }
+.uiv-fbtn.on { background: #312e81; border-color: #6366f1; color: #fff; box-shadow: 0 0 0 1px #4f46e5 inset; }
 .uiv-empty { color: #71717a; padding: 18px 12px; text-align: center; }
 
 .uiv-meta { line-height: 1.5; }
@@ -253,7 +251,7 @@ export const CSS = /* css */ `
 .uiv-jchg .bp { color: #818cf8; }
 .uiv-jchg .tok { color: #4ade80; }
 
-.uiv-foot { display: flex; gap: 6px; padding: 10px 12px; position: sticky; bottom: 0;
+.uiv-foot { display: flex; gap: 6px; padding: 10px 12px; position: sticky; bottom: 0; z-index: 8;
   background: #18181b; border-top: 1px solid #27272a; flex-wrap: wrap; }
 .uiv-btn { flex: 1; cursor: pointer; border: 1px solid #3f3f46; background: #27272a;
   color: #e4e4e7; border-radius: 7px; padding: 7px 8px; font-size: 11px; font-weight: 600;
@@ -262,10 +260,11 @@ export const CSS = /* css */ `
 .uiv-btn.primary { background: #4f46e5; border-color: #6366f1; color: #fff; flex-basis: 100%; }
 .uiv-btn.primary:hover { background: #4338ca; }
 .uiv-btn.ghost { flex: 0 0 auto; }
-/* floating read-only "all styles" block, docked bottom-right, left of the panel */
-.uiv-info { position: fixed; right: 384px; bottom: 16px; z-index: 2147483646;
-  width: 216px; max-height: 52vh; overflow: auto; display: none;
-  background: rgba(24,24,27,0.86); color: #e4e4e7;
+/* floating read-only "all styles" block — top-LEFT of the screen, its top edge on
+   the same line as the breakpoint toolbar (which is centred up top). */
+.uiv-info { position: fixed; left: 14px; top: 8px; z-index: 2147483646;
+  width: 216px; max-height: 84vh; overflow: auto; display: none;
+  background: rgba(24,24,27,0.92); color: #e4e4e7;
   border: 1px solid #3f3f46; border-radius: 10px; padding: 8px 10px;
   font-size: 11px; box-shadow: 0 8px 28px rgba(0,0,0,0.4); }
 .uiv-info.show { display: block; }

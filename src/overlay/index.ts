@@ -306,6 +306,18 @@ class Uivisor {
     for (const d of [250, 900, 2200]) window.setTimeout(refresh, d)
   }
 
+  /** Frame width for the "all"/base chip: a narrow phone-ish screen in the base
+   *  range (mobile-first) so clicking "all" actually shows the base layout — the
+   *  EDIT SCOPE stays decoupled (base applies to every size regardless of width). */
+  private baseFrameWidth(): number {
+    const sys = this.bpSystem()
+    if (sys.dir === 'min') {
+      const firstBp = sys.breakpoints.length ? sys.breakpoints[0].minWidth : 640
+      return Math.min(390, firstBp - 1)
+    }
+    return 390
+  }
+
   // ---- responsive (virtual screen) mode ----
   /** The document the inspector currently targets: the iframe in responsive mode. */
   private doc(): Document {
@@ -546,9 +558,10 @@ class Uivisor {
     this.renderBody()
   }
 
-  /** Properties to snapshot on selection — the curated set the controls can edit. */
+  /** Properties to snapshot on selection — the curated set the controls can edit,
+   *  plus the flex-alignment props handled by the visual button-rows. */
   private snapshotProps(): string[] {
-    return ALL_CSS
+    return [...new Set([...ALL_CSS, 'justify-content', 'align-items'])]
   }
 
   // ---- value helpers ----
@@ -919,7 +932,6 @@ class Uivisor {
         <div class="uiv-src">${escapeHtml(src)}</div>
         <span class="uiv-mech">${st.record.styling.primaryMechanism}</span>
       </div>
-      ${this.alignToolbarHtml()}
       ${this.dsIndicatorHtml()}
       ${this.breakpointBarHtml()}
       ${this.targetHtml(st)}
@@ -1279,29 +1291,38 @@ class Uivisor {
 
   /** Framer-style top alignment toolbar — justify (horizontal) + align (vertical)
    *  icon buttons. Shown for flex/grid containers (where they apply). */
-  private alignToolbarHtml(): string {
+  /** Visual flex/grid alignment controls — bigger Framer-style icon buttons in two
+   *  labelled rows (Justify, Align). Injected right below the Display dropdown and
+   *  shown only for flex/grid containers; replaces the duplicate Justify/Align
+   *  selects entirely. Commits through the engine via the shared `.uiv-fbtn` binding. */
+  private flexControlsHtml(): string {
     const el = this.selected
     if (!el || !this.context(el).flexGrid) return ''
     const j = this.liveVal('justify-content').trim()
     const a = this.liveVal('align-items').trim()
-    const g = (r: string) => `<svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor">${r}</svg>`
-    const JI: Record<string, string> = {
-      'flex-start': g('<rect x="1" y="3" width="2" height="8"/><rect x="4" y="3" width="2" height="8"/>'),
-      center: g('<rect x="4" y="3" width="2" height="8"/><rect x="8" y="3" width="2" height="8"/>'),
-      'flex-end': g('<rect x="8" y="3" width="2" height="8"/><rect x="11" y="3" width="2" height="8"/>'),
-      'space-between': g('<rect x="1" y="3" width="2" height="8"/><rect x="11" y="3" width="2" height="8"/>'),
+    const g = (r: string) => `<svg viewBox="0 0 18 18" width="17" height="17" fill="currentColor">${r}</svg>`
+    const JI: [string, string][] = [
+      ['flex-start', g('<rect x="2" y="4" width="2.4" height="10" rx="1"/><rect x="5.6" y="4" width="2.4" height="10" rx="1"/>')],
+      ['center', g('<rect x="5" y="4" width="2.4" height="10" rx="1"/><rect x="10.6" y="4" width="2.4" height="10" rx="1"/>')],
+      ['flex-end', g('<rect x="10" y="4" width="2.4" height="10" rx="1"/><rect x="13.6" y="4" width="2.4" height="10" rx="1"/>')],
+      ['space-between', g('<rect x="2" y="4" width="2.4" height="10" rx="1"/><rect x="13.6" y="4" width="2.4" height="10" rx="1"/>')],
+    ]
+    const AI: [string, string][] = [
+      ['flex-start', g('<rect x="4" y="2" width="10" height="2.4" rx="1"/><rect x="4" y="5.6" width="10" height="2.4" rx="1"/>')],
+      ['center', g('<rect x="4" y="5" width="10" height="2.4" rx="1"/><rect x="4" y="10.6" width="10" height="2.4" rx="1"/>')],
+      ['flex-end', g('<rect x="4" y="10" width="10" height="2.4" rx="1"/><rect x="4" y="13.6" width="10" height="2.4" rx="1"/>')],
+      ['stretch', g('<rect x="4" y="2" width="10" height="14" rx="1"/>')],
+    ]
+    const row = (label: string, prop: string, cur: string, entries: [string, string][]): string => {
+      const btns = entries
+        .map(
+          ([v, ic]) =>
+            `<button class="uiv-fbtn${cur === v ? ' on' : ''}" data-prop="${prop}" data-val="${v}" title="${prop}: ${v}">${ic}</button>`,
+        )
+        .join('')
+      return `<div class="uiv-ctl${this.controlStateClass([prop])}">${this.ctlLabel(label, [prop])}<div class="cfield uiv-fbtns">${btns}</div><span></span></div>`
     }
-    const AI: Record<string, string> = {
-      'flex-start': g('<rect x="3" y="1" width="8" height="2"/><rect x="3" y="4" width="8" height="2"/>'),
-      center: g('<rect x="3" y="4" width="8" height="2"/><rect x="3" y="8" width="8" height="2"/>'),
-      'flex-end': g('<rect x="3" y="8" width="8" height="2"/><rect x="3" y="11" width="8" height="2"/>'),
-      stretch: g('<rect x="3" y="1" width="8" height="12"/>'),
-    }
-    const btn = (prop: string, val: string, icon: string, cur: string) =>
-      `<button class="uiv-tbtn${cur === val ? ' on' : ''}" data-prop="${prop}" data-val="${val}" title="${prop}: ${val}">${icon}</button>`
-    const jb = Object.entries(JI).map(([v, ic]) => btn('justify-content', v, ic, j)).join('')
-    const ab = Object.entries(AI).map(([v, ic]) => btn('align-items', v, ic, a)).join('')
-    return `<div class="uiv-toolbar"><div class="uiv-tgroup">${jb}</div><div class="uiv-tsep"></div><div class="uiv-tgroup">${ab}</div></div>`
+    return row('Justify', 'justify-content', j, JI) + row('Align', 'align-items', a, AI)
   }
 
   /** Figma/Framer-style nested box-model widget: MARGIN ring around a PADDING ring,
@@ -1376,6 +1397,9 @@ class Uivisor {
           adds.push(`<button class="uiv-addctl" data-css="${css}">+ ${escapeHtml(c.label)}</button>`)
         } else {
           rows.push(this.controlRow(c))
+          // Right below the Display dropdown: the visual Justify/Align button-rows
+          // (flex/grid only). Keeps all the alignment controls in one place.
+          if (css === 'display') rows.push(this.flexControlsHtml())
         }
       }
       const addRow = adds.length ? `<div class="uiv-adds">${adds.join('')}</div>` : ''
@@ -1618,7 +1642,7 @@ class Uivisor {
 
   private bindControls(): void {
     const root = this.root
-    root.querySelectorAll('.uiv-tbtn').forEach((node) => {
+    root.querySelectorAll('.uiv-fbtn').forEach((node) => {
       const btn = node as HTMLElement
       const prop = btn.getAttribute('data-prop')!
       const val = btn.getAttribute('data-val')!
@@ -1791,11 +1815,12 @@ class Uivisor {
       const bp = btn.getAttribute('data-bp')!
       btn.addEventListener('click', () => {
         // Pick the breakpoint edits scope to (the explicit choice — NOT inferred from
-        // the frame width). 'base' keeps the comfortable default view; a specific
-        // breakpoint resizes the frame to preview it. Edits at other breakpoints keep
-        // their own tags. No reload, so the selection is kept.
+        // the frame width). Each chip resizes the frame to preview that screen: "all"
+        // shows the narrow base layout, a specific breakpoint its own width. The EDIT
+        // SCOPE stays decoupled (a base edit still applies at every size). No reload,
+        // so the selection is kept; edits at other breakpoints keep their tags.
         this.pickedBp = bp
-        this.setFrameWidth(bp === 'base' ? this.defaultFrameWidth() : this.scopeWidth(bp))
+        this.setFrameWidth(bp === 'base' ? this.baseFrameWidth() : this.scopeWidth(bp))
         this.reapplyScope() // project edits onto the newly active breakpoint
         this.renderBody()
       })
