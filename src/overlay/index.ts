@@ -273,18 +273,19 @@ class Uivisor {
       if (this.responsive) this.toggleResponsive(false)
     } else {
       this.scheduleBpRefresh()
-      // No "Live" mode: always work in the virtual screen, sized to the current
-      // window's breakpoint by default. The frame loads once here, so there's no
-      // mid-session real→frame switch that used to drop the selection.
+      // No "Live" mode: always work in the virtual screen. The default scope is
+      // "all"/base, so open the frame already sized to that base screen (a phone for
+      // mobile-first, a desktop for desktop-first) — otherwise the chip reads "all"
+      // while the frame stays at window width until you click "all" again.
       if (!this.responsive) {
         this.pickedBp = 'base' // casual edits apply to every size until you pick a breakpoint
-        this.frameWidth = this.defaultFrameWidth()
+        this.frameWidth = this.baseFrameWidth()
         this.toggleResponsive(true)
       }
     }
   }
 
-  /** Frame width on enable: the real window width (≈ the current breakpoint). */
+  /** The real window width — used as the desktop reference for a desktop-first base. */
   private defaultFrameWidth(): number {
     return typeof window !== 'undefined' ? window.innerWidth : 1280
   }
@@ -306,16 +307,22 @@ class Uivisor {
     for (const d of [250, 900, 2200]) window.setTimeout(refresh, d)
   }
 
-  /** Frame width for the "all"/base chip: a narrow phone-ish screen in the base
-   *  range (mobile-first) so clicking "all" actually shows the base layout — the
-   *  EDIT SCOPE stays decoupled (base applies to every size regardless of width). */
+  /** Frame width for the "all"/base chip — the screen the project's UNPREFIXED
+   *  (base) styles target, which depends on the cascade direction:
+   *   • mobile-first (min-width)  → base is the SMALLEST view → a phone width;
+   *   • desktop-first (max-width) → base is the WIDEST view  → a desktop width.
+   *  The EDIT SCOPE stays decoupled (a base edit applies at every size regardless). */
   private baseFrameWidth(): number {
     const sys = this.bpSystem()
+    const bps = sys.breakpoints
     if (sys.dir === 'min') {
-      const firstBp = sys.breakpoints.length ? sys.breakpoints[0].minWidth : 640
+      const firstBp = bps.length ? bps[0].minWidth : 640
       return Math.min(390, firstBp - 1)
     }
-    return 390
+    // desktop-first: a width above the largest max-width breakpoint (the real window
+    // if it's already wider, so it looks like the desktop the user is on).
+    const lastBp = bps.length ? bps[bps.length - 1].minWidth : 1024
+    return Math.max(this.defaultFrameWidth(), lastBp + 80)
   }
 
   // ---- responsive (virtual screen) mode ----
