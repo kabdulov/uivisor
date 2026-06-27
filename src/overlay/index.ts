@@ -189,6 +189,11 @@ class Uivisor {
   private frameWrap!: HTMLElement
   private frame!: HTMLIFrameElement
   private frameWidth = 768
+  /** The breakpoint new edits are scoped to — chosen explicitly via the chips,
+   *  NOT derived from the frame's pixel width. Defaults to 'base' so a casual tweak
+   *  applies to EVERY size (and never "disappears" when you view another size).
+   *  Picking a specific breakpoint chip narrows the scope to that breakpoint. */
+  private pickedBp = 'base'
 
   mount(): void {
     this.host = document.createElement('div')
@@ -310,6 +315,7 @@ class Uivisor {
       // window's breakpoint by default. The frame loads once here, so there's no
       // mid-session real→frame switch that used to drop the selection.
       if (!this.responsive) {
+        this.pickedBp = 'base' // casual edits apply to every size until you pick a breakpoint
         this.frameWidth = this.defaultFrameWidth()
         this.toggleResponsive(true)
       }
@@ -319,13 +325,6 @@ class Uivisor {
   /** Frame width on enable: the real window width (≈ the current breakpoint). */
   private defaultFrameWidth(): number {
     return typeof window !== 'undefined' ? window.innerWidth : 1280
-  }
-
-  /** Frame width for the "all"/base chip: a phone-ish width in the base range. */
-  private baseFrameWidth(): number {
-    const bps = this.bpSystem().breakpoints
-    const firstBp = bps.length ? bps[0].minWidth : 640
-    return this.bpSystem().dir === 'min' ? Math.min(390, firstBp - 1) : 390
   }
 
   /** Stylesheets (esp. JIT/CDN Tailwind) load async — re-detect breakpoints a few
@@ -440,8 +439,9 @@ class Uivisor {
     this.frameWidth = Math.max(280, Math.min(2400, Math.round(w)))
     const host = this.q('.uiv-framehost')
     host.style.width = `${this.frameWidth}px`
-    const bp = activeBreakpoint(this.frameWidth, this.bpSystem()).name
-    this.q('.uiv-framew').textContent = `${this.frameWidth}px · ${this.bpLabel(bp)}`
+    // The readout shows the canvas WIDTH plus which breakpoint your edits scope to
+    // (the picked scope, not the frame's pixel-breakpoint — those can differ).
+    this.q('.uiv-framew').textContent = `${this.frameWidth}px · editing ${this.bpLabel(this.scopeName())}`
     this.updateBp()
     this.reposition()
   }
@@ -746,19 +746,43 @@ class Uivisor {
     this.reposition()
   }
 
-  /** The breakpoint recorded edits are scoped to: manual override, else window. */
-  /** The breakpoint edits are scoped to: the virtual screen's width when in
-   *  responsive mode, otherwise the real window. */
+  /** The breakpoint new edits are scoped to. In responsive mode it's the EXPLICITLY
+   *  picked breakpoint (default 'base' = every size), decoupled from the frame's
+   *  pixel width — so editing at a desktop-sized frame still defaults to "all sizes"
+   *  instead of silently scoping to the top breakpoint and vanishing elsewhere. */
   private activeScope(): ActiveBreakpoint {
     const sys = this.bpSystem()
-    if (this.responsive) return activeBreakpoint(this.frameWidth, sys)
-    return currentBreakpoint(sys)
+    if (!this.responsive) return currentBreakpoint(sys)
+    const name = this.scopeName()
+    const bp = sys.breakpoints.find((b) => b.name === name)
+    return { name, minWidth: bp ? bp.minWidth : 0 }
   }
 
-  /** The width the inspector is scoped to (virtual screen, else real window). */
+  /** The picked breakpoint, validated against the current system (falls back to
+   *  'base' if a previously-picked breakpoint no longer exists after re-detection). */
+  private scopeName(): string {
+    if (this.pickedBp === 'base') return 'base'
+    return this.bpSystem().breakpoints.some((b) => b.name === this.pickedBp)
+      ? this.pickedBp
+      : 'base'
+  }
+
+  /** The width the cascade is evaluated at — the representative width of the PICKED
+   *  scope, not the frame's visual width. base → a width where only base applies (so
+   *  base edits win and show everywhere); a named breakpoint → its threshold. */
   private activeWidth(): number {
-    if (this.responsive) return this.frameWidth
-    return typeof window !== 'undefined' ? window.innerWidth : 0
+    if (!this.responsive) return typeof window !== 'undefined' ? window.innerWidth : 0
+    return this.scopeWidth(this.scopeName())
+  }
+
+  private scopeWidth(name: string): number {
+    const sys = this.bpSystem()
+    if (name !== 'base') {
+      const bp = sys.breakpoints.find((b) => b.name === name)
+      if (bp) return bp.minWidth
+    }
+    // base: a width where no breakpoint is more specific than base.
+    return sys.dir === 'min' ? 0 : 1_000_000
   }
 
   /** The recorded change that wins the breakpoint cascade for `css` at the active
@@ -1215,9 +1239,8 @@ class Uivisor {
    *  project breakpoint. Reused by the panel (Live) and the over-frame bar. */
   private breakpointChipsHtml(): string {
     const sys = this.bpSystem()
-    const frameBp = this.responsive ? activeBreakpoint(this.frameWidth, sys).name : null
     const winBp = currentBreakpoint(sys).name
-    const isActive = (n: string) => (this.responsive ? n === frameBp : n === winBp)
+    const isActive = (n: string) => (this.responsive ? n === this.scopeName() : n === winBp)
     const chip = (n: string, on: boolean, title: string) =>
       `<button class="uiv-chip${on ? ' on' : ''}" data-bp="${n}" title="${escapeAttr(title)}">${this.bpIcon(n)}<span>${this.bpLabel(n)}</span></button>`
     const all = chip('base', isActive('base'), 'No breakpoint — applies to every size by default')
@@ -2045,13 +2068,12 @@ class Uivisor {
       const btn = node as HTMLElement
       const bp = btn.getAttribute('data-bp')!
       btn.addEventListener('click', () => {
-        // Always in the virtual screen — a chip just resizes it (no reload, so the
-        // selection is kept). Edits already at other breakpoints keep their tags.
-        const w =
-          bp === 'base'
-            ? this.baseFrameWidth()
-            : (this.bpSystem().breakpoints.find((b) => b.name === bp)?.minWidth ?? 768)
-        this.setFrameWidth(w)
+        // Pick the breakpoint edits scope to (the explicit choice — NOT inferred from
+        // the frame width). 'base' keeps the comfortable default view; a specific
+        // breakpoint resizes the frame to preview it. Edits at other breakpoints keep
+        // their own tags. No reload, so the selection is kept.
+        this.pickedBp = bp
+        this.setFrameWidth(bp === 'base' ? this.defaultFrameWidth() : this.scopeWidth(bp))
         this.reapplyScope() // project edits onto the newly active breakpoint
         this.renderBody()
       })
